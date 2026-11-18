@@ -6747,8 +6747,14 @@ function buildDataSnapshot(){
   Object.keys(SLOT_CACHE).forEach(function(id){var k2=slotDataKey(id);if(!meta.keys[k2])meta.keys[k2]=JSON.stringify(SLOT_CACHE[id]);});
   return meta;
 }
+function snapshotHasShip(meta){
+  var k=meta&&meta.keys||{};if(k[PROJECT_KEY])return true;
+  return Object.keys(k).some(function(x){return x.indexOf("tersane_slotdata_")===0;});
+}
 function driveUploadData(c){
-  var blob=new Blob([JSON.stringify(buildDataSnapshot())],{type:"application/json"});
+  var snap=buildDataSnapshot();
+  if(!snapshotHasShip(snap))return Promise.resolve(null);      // boş telefon Drive'daki dolu kaydın üzerine yazmasın
+  var blob=new Blob([JSON.stringify(snap)],{type:"application/json"});
   var go=function(){
     if(c.dataId)return driveMultipart({},blob,"PATCH",c.dataId);
     return driveMultipart({name:"gemitakip-veri.json",parents:[c.root]},blob).then(function(f){c.dataId=f.id;driveSaveCfg(c);return f;});
@@ -6915,7 +6921,7 @@ function openDriveFilesPanel(){
       }).then(function(r){
         st.busy="";try{repairSlots();}catch(e){}for(var k in _lazyMiss)delete _lazyMiss[k];
         st.result=(r.added.length?("Eklenen gemiler: "+esc(r.added.join(", "))+". "):"Yeni gemi eklenmedi, gemiler zaten var. ")+r.photos+" fotoğraf aktarıldı.";
-        if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";st.result+=" İlk gemi açıldı.";}
+        if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";st.result+=" İlk gemi açıldı.";if(driveEnabled())driveInit();}
         draw();
       }).catch(function(e){st.busy="";st.err="Aktarılamadı: "+(e&&e.message||e);draw();});
     };});
@@ -7165,7 +7171,8 @@ function mountBackupSheet(){
   var dfl=ov.querySelector("#drv-files");if(dfl)dfl.onclick=function(){App.backupSheet=null;render();openDriveFilesPanel();};
   var ddt=ov.querySelector("#drv-data");if(ddt)ddt.onclick=function(){
     var go=function(){driveFetchData().then(function(d){
-      if(!d){toast("Drive’da henüz işler dosyası yok");return;}
+      var dj=null;try{dj=d&&JSON.parse(d.text);}catch(e){}
+      if(!d||!snapshotHasShip(dj)){toast("Drive’daki eşitleme dosyası boş; yedeklerden kurun");openDriveFilesPanel();return;}
       doRestore([new File([d.text],"gemitakip-veri.json",{type:"application/json"})]);
     }).catch(function(e){toast("Alınamadı: "+(e&&e.message||e));});};
     if(driveTokenOk())go();else driveSignIn(true).then(go,function(e){toast("Bağlanamadı: "+(e&&e.message||e));});
@@ -7322,7 +7329,7 @@ function importShipsWithOverlay(src){
     .then(function(r){
       try{repairSlots();}catch(e){}for(var k in _lazyMiss)delete _lazyMiss[k];
       var t=(r.added.length?("Eklenen gemiler: "+r.added.join(", ")+". "):"Yeni gemi eklenmedi, gemiler zaten var. ")+r.photos+" fotoğraf aktarıldı.";
-      if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";t+=" İlk gemi açıldı; diğerleri Gemi Değiştir’de.";}
+      if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";t+=" İlk gemi açıldı; diğerleri Gemi Değiştir’de.";if(driveEnabled())driveInit();}
       pr.textContent=t;okb.style.display="";
     }).catch(function(e){pr.textContent="Aktarılamadı: "+(e&&e.message||e);okb.style.display="";});
 }
@@ -7726,7 +7733,8 @@ function bindSetup(){
     var c=driveCfg(),inp=document.getElementById("su-drv-cid"),msg=document.getElementById("su-drv-msg");
     if(inp){var v=(inp.value||"").trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast("Client ID apps.googleusercontent.com ile bitmeli");return;}c.clientId=v;driveSaveCfg(c);}
     driveSignIn(false).then(function(){if(msg)msg.textContent="Drive’daki işler alınıyor…";return driveFetchData();}).then(function(d){
-      if(!d){if(msg)msg.textContent="";openDriveFilesPanel();return;}
+      var dj=null;try{dj=d&&JSON.parse(d.text);}catch(e){}
+      if(!d||!snapshotHasShip(dj)){if(msg)msg.textContent="";openDriveFilesPanel();return;}
       doRestore([new File([d.text],"gemitakip-veri.json",{type:"application/json"})]);
       driveAfterRestorePhotos();
     }).catch(function(e){if(msg)msg.textContent="Olmadı: "+(e&&e.message||e);});
