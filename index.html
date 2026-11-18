@@ -6699,7 +6699,7 @@ function driveLoadGis(){
 function driveSignIn(silent){
   var c=driveCfg();if(!c.clientId)return Promise.reject(new Error("Client ID yok"));
   return driveLoadGis().then(function(){return new Promise(function(resolve,reject){
-    DRV.client=google.accounts.oauth2.initTokenClient({client_id:c.clientId,scope:"https://www.googleapis.com/auth/drive.file",
+    DRV.client=google.accounts.oauth2.initTokenClient({client_id:c.clientId,scope:"https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly",
       callback:function(r){
         if(r&&r.access_token){DRV.token=r.access_token;DRV.exp=Date.now()+((+r.expires_in||3600)*1000);DRV.needTap=false;
           try{sessionStorage.setItem("gt_drv_tok",JSON.stringify({t:DRV.token,e:DRV.exp}));}catch(e){}
@@ -6855,6 +6855,84 @@ function driveArmTapRefresh(){
     driveSignIn(true).then(function(){DRV._refreshing=false;driveSync();},function(){DRV._refreshing=false;});
   },true);
 }
+/* ---- Drive'daki yedek ve raporları doğrudan kullan (telefona indirmeden) ---- */
+function driveListUserFiles(){
+  var out=[];
+  function page(tok){
+    var q="trashed=false and mimeType!='application/vnd.google-apps.folder' and (name contains 'GemiTakip' or name contains 'Daily Progress Report' or name contains 'Seaways')";
+    return driveFetch(DRIVE_API+"/files?q="+encodeURIComponent(q)+"&fields=nextPageToken,files(id,name,size,modifiedTime)&pageSize=1000&orderBy=name"+(tok?"&pageToken="+tok:"")).then(function(j){
+      out=out.concat(j.files||[]);return j.nextPageToken?page(j.nextPageToken):out;
+    });
+  }
+  return page(null);
+}
+function driveDownloadBuffer(id){return driveFetch(DRIVE_API+"/files/"+id+"?alt=media",{},true).then(function(r){return r.arrayBuffer();});}
+// Büyük yedek: parça parça akarak okunur, tamamı hiçbir zaman bellekte durmaz
+function driveStreamSource(f){
+  var reader=null;
+  return {name:f.name,size:+f.size||0,nextChunk:function(){
+    var p=reader?Promise.resolve():driveFetch(DRIVE_API+"/files/"+f.id+"?alt=media",{},true).then(function(r){reader=r.body.getReader();});
+    return p.then(function(){return reader.read();}).then(function(x){return x.done?null:x.value;});
+  }};
+}
+function fmtSize(b){b=+b||0;return b>1048576?(b/1048576).toFixed(0)+" MB":(b/1024).toFixed(0)+" KB";}
+function openDriveFilesPanel(){
+  var st={files:null,err:"",busy:"",result:""};
+  var ov=document.createElement("div");ov.className="ov";ov.id="drv-files";
+  document.body.appendChild(ov);
+  function close(){if(st.busy)return;if(ov.parentNode)ov.parentNode.removeChild(ov);render();}
+  function draw(){
+    var ship=((App.project||{}).shipName||"").replace(/^M\/V\s+/i,"");
+    var h='<div class="sheet an-pop" style="max-height:92vh"><div class="sheet-h"><div class="t">'+I("upload")+' Drive’daki yedekler</div><button class="icon-btn" style="background:#f1f5f9;color:var(--t3)" id="dfp-close">'+I("x")+'</button></div><div class="sheet-b">';
+    if(st.busy)h+='<div style="border:1px solid #fed7aa;background:#fff7ed;border-radius:10px;padding:10px;margin-bottom:12px;font-size:12.5px;color:#9a3412"><b>Çalışıyor, ekranı kapatmayın.</b><div id="dfp-prog" style="margin-top:4px">'+esc(st.busy)+'</div></div>';
+    if(st.result)h+='<div class="tip" style="color:#15803d;margin-bottom:10px">'+st.result+'</div>';
+    if(st.err)h+='<div class="tip" style="color:#b91c1c;margin-bottom:10px">'+esc(st.err)+'</div>';
+    if(!st.files){h+='<div style="font-size:12.5px;color:var(--t3)">Drive’daki dosyalar listeleniyor…</div>';}
+    else{
+      var backups=st.files.filter(function(f){return /^GemiTakip_(Yedek|Veri)/i.test(f.name)&&/\.(json|txt)$/i.test(f.name);});
+      var reports=st.files.filter(function(f){return /\.(docx|zip)$/i.test(f.name)&&(!ship||f.name.toLocaleLowerCase("tr").indexOf(ship.toLocaleLowerCase("tr").split(" ")[0])>=0);});
+      h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin-bottom:6px">YEDEKLER · gemileri ve fotoğrafları ekler, var olana dokunmaz</div>';
+      if(!backups.length)h+='<div class="tip">Drive’da GemiTakip yedeği bulunamadı.</div>';
+      backups.forEach(function(f){
+        h+='<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px"><div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;word-break:break-all">'+esc(f.name)+'</div><div style="font-size:11px;color:var(--t3)">'+fmtSize(f.size)+'</div></div>'+
+           '<button class="btn btn-navy" data-dfp-bk="'+esc(f.id)+'" style="padding:7px 12px;font-size:12px"'+(st.busy?" disabled":"")+'>Ekle</button></div>';
+      });
+      if(App.project){
+        h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:16px 0 6px">RAPORLAR · '+esc((App.project||{}).shipName||"")+' için eksik günler</div>';
+        h+='<div style="font-size:12.5px;color:var(--t2);margin-bottom:8px">'+reports.length+' rapor ve fotoğraf ZIP’i bulundu. Var olan günlerin dosyaları indirilmez.</div>';
+        h+='<button class="btn btn-navy" id="dfp-reports" style="width:100%;padding:11px"'+(st.busy||!reports.length?" disabled":"")+'>Eksik günleri raporlardan ekle</button>';
+      }
+      st._reports=reports;st._backups=backups;
+    }
+    h+='</div></div>';
+    ov.innerHTML=h;
+    ov.querySelector("#dfp-close").onclick=close;
+    Array.prototype.forEach.call(ov.querySelectorAll("[data-dfp-bk]"),function(b){b.onclick=function(){
+      var f=st.files.filter(function(x){return x.id===b.getAttribute("data-dfp-bk");})[0];if(!f)return;
+      st.busy="Başlıyor…";st.err="";st.result="";draw();
+      importBackupAsShips(driveStreamSource(f),function(done,total,photos){
+        st.busy=(total?("%"+Math.min(100,Math.round(done*100/total))+" · "):"")+photos+" fotoğraf aktarıldı";var p=document.getElementById("dfp-prog");if(p)p.textContent=st.busy;
+      }).then(function(r){
+        st.busy="";try{repairSlots();}catch(e){}for(var k in _lazyMiss)delete _lazyMiss[k];
+        st.result=(r.added.length?("Eklenen gemiler: "+esc(r.added.join(", "))+". "):"Yeni gemi eklenmedi, gemiler zaten var. ")+r.photos+" fotoğraf aktarıldı.";
+        if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";st.result+=" İlk gemi açıldı.";}
+        draw();
+      }).catch(function(e){st.busy="";st.err="Aktarılamadı: "+(e&&e.message||e);draw();});
+    };});
+    var rb=ov.querySelector("#dfp-reports");if(rb)rb.onclick=function(){
+      var srcs=(st._reports||[]).map(function(f){return {name:f.name,load:function(){return driveDownloadBuffer(f.id);}};});
+      st.busy="Başlıyor…";st.err="";st.result="";draw();
+      importReportDays(srcs,function(msg){st.busy=msg;var p=document.getElementById("dfp-prog");if(p)p.textContent=msg;}).then(function(r){
+        st.busy="";
+        st.result=(r.added.length?("Eklenen günler: "+esc(r.added.map(fmtShort).join(", "))+". "+r.photos+" fotoğraf. "):"Eklenecek yeni gün yok. ")+(r.errors.length?'<span style="color:#b91c1c">'+esc(r.errors.slice(0,6).join(" · "))+'</span>':"");
+        draw();
+      }).catch(function(e){st.busy="";st.err=String(e&&e.message||e);draw();});
+    };
+  }
+  draw();
+  var go=function(){driveListUserFiles().then(function(fs){st.files=fs;draw();}).catch(function(e){st.files=[];st.err=String(e&&e.message||e);draw();});};
+  if(driveTokenOk())go();else driveSignIn(true).then(go,function(e){st.files=[];st.err="Drive’a bağlanılamadı: "+(e&&e.message||e);draw();});
+}
 // Veri geri yüklendikten sonra fotoğrafları arka planda indir
 function driveAfterRestorePhotos(){
   var tries=0,iv=setInterval(function(){
@@ -7002,6 +7080,7 @@ function mountBackupSheet(){
       h+='<button class="btn btn-out" id="drv-sync" style="flex:1;min-width:120px;padding:9px;font-size:12.5px">Şimdi eşitle</button>';
       h+='<button class="btn btn-out" id="drv-restore" style="flex:1;min-width:120px;padding:9px;font-size:12.5px">Eksik fotoğrafları indir</button>';
       h+='</div>';
+      h+='<button class="btn btn-navy" id="drv-files" style="width:100%;margin-top:6px;padding:10px;font-size:12.5px">Drive’daki yedek ve raporları kullan</button>';
       h+='<button class="btn btn-out" id="drv-data" style="width:100%;margin-top:6px;padding:9px;font-size:12.5px">Drive’daki işleri bu telefona kur</button>';
     }
     h+='<div id="drv-prog" style="font-size:12px;color:var(--t3);margin-top:6px"></div>';
@@ -7083,6 +7162,7 @@ function mountBackupSheet(){
         .catch(function(e){var p3=document.getElementById("drv-prog");if(p3)p3.textContent="Hata: "+(e&&e.message||e);});};
     if(driveTokenOk())go();else driveSignIn(true).then(go,function(e){toast("Bağlanamadı: "+(e&&e.message||e));});
   };
+  var dfl=ov.querySelector("#drv-files");if(dfl)dfl.onclick=function(){App.backupSheet=null;render();openDriveFilesPanel();};
   var ddt=ov.querySelector("#drv-data");if(ddt)ddt.onclick=function(){
     var go=function(){driveFetchData().then(function(d){
       if(!d){toast("Drive’da henüz işler dosyası yok");return;}
@@ -7167,8 +7247,16 @@ function streamBackupFile(file,onKey,onPhoto,onProgress){
       if(expect==="done"){i++;continue;}
     }
   }
+  function finish(){feed(dec.decode());if(depth!==0)return Promise.reject(new Error("Yedek dosyası yarım: sonu eksik"));return Promise.resolve(meta);}
   function step(){
-    if(pos>=size){feed(dec.decode());if(depth!==0)return Promise.reject(new Error("Yedek dosyası yarım: sonu eksik"));return Promise.resolve(meta);}
+    if(file.nextChunk){                         // akış kaynağı (Drive'dan indirme)
+      return file.nextChunk().then(function(u8){
+        if(!u8)return finish();
+        feed(dec.decode(u8,{stream:true}));pos+=u8.length;
+        return Promise.resolve(onProgress(pos,size||pos)).then(step);
+      });
+    }
+    if(pos>=size)return finish();
     var end=Math.min(size,pos+IMPORT_CHUNK);
     return file.slice(pos,end).arrayBuffer().then(function(ab){
       feed(dec.decode(new Uint8Array(ab),{stream:true}));
@@ -7204,7 +7292,7 @@ function importBackupAsShips(file,onProgress){
     if(active[PROJECT_KEY])ships.unshift(active);
     var have={};slotIds().forEach(function(id){var d=slotGet(id);if(d)have[shipFingerprint(d)]=1;});
     have[shipFingerprint(collectActiveData())]=1;
-    var slots=loadSlots(),added=[],skipped=0,stamp=meta&&meta._date?String(meta._date).slice(0,10):"";
+    var slots=loadSlots(),added=[],ids=[],skipped=0,stamp=meta&&meta._date?String(meta._date).slice(0,10):"";
     var writes=[];
     ships.forEach(function(sd){
       var fp=shipFingerprint(sd);if(!fp||have[fp]){skipped++;return;}have[fp]=1;
@@ -7214,14 +7302,29 @@ function importBackupAsShips(file,onProgress){
       writes.push(slotPut(id,sd));
       var nm=(p.shipName||"Gemi");
       slots.push({id:id,name:nm,shipName:p.shipName||"",savedAt:Date.now(),dayCount:ix.length,startDate:p.startDate||ix[0]||"",fromBackup:stamp});
-      added.push(nm+" · "+ix.length+" gün");
+      added.push(nm+" · "+ix.length+" gün");ids.push(id);
     });
     saveSlots(slots);
     return Promise.all(writes).then(function(){
       try{if(wakeLock)wakeLock.release();}catch(e){}
-      return {added:added,skipped:skipped,photos:photos,date:stamp};
+      return {added:added,ids:ids,skipped:skipped,photos:photos,date:stamp};
     });
   });
+}
+// İlerlemeyi kendi penceresinde gösterir (ilk kurulum ekranında da çalışır); gemi açık değilse ilk eklenen gemiyi açar
+function importShipsWithOverlay(src){
+  var ov=document.createElement("div");ov.className="ov";
+  ov.innerHTML='<div class="sheet an-pop"><div class="sheet-h"><div class="t">'+I("upload")+' Yedek aktarılıyor</div></div><div class="sheet-b"><div style="font-size:12.5px;color:#9a3412;font-weight:700;margin-bottom:6px">Ekranı kapatmayın.</div><div id="iso-prog" style="font-size:13px;color:var(--t2)">Başlıyor…</div><button class="btn btn-navy" id="iso-ok" style="width:100%;margin-top:12px;display:none">Tamam</button></div></div>';
+  document.body.appendChild(ov);
+  var pr=ov.querySelector("#iso-prog"),okb=ov.querySelector("#iso-ok");
+  okb.onclick=function(){if(ov.parentNode)ov.parentNode.removeChild(ov);render();};
+  importBackupAsShips(src,function(done,total,photos){pr.textContent=(total?("%"+Math.min(100,Math.round(done*100/total))+" · "):"")+photos+" fotoğraf aktarıldı";})
+    .then(function(r){
+      try{repairSlots();}catch(e){}for(var k in _lazyMiss)delete _lazyMiss[k];
+      var t=(r.added.length?("Eklenen gemiler: "+r.added.join(", ")+". "):"Yeni gemi eklenmedi, gemiler zaten var. ")+r.photos+" fotoğraf aktarıldı.";
+      if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";t+=" İlk gemi açıldı; diğerleri Gemi Değiştir’de.";}
+      pr.textContent=t;okb.style.display="";
+    }).catch(function(e){pr.textContent="Aktarılamadı: "+(e&&e.message||e);okb.style.display="";});
 }
 function startImportShips(file){
   if(!file)return;
@@ -7373,67 +7476,88 @@ function buildDayFromReport(rep,baseItems,dateISO){
   (baseItems||[]).forEach(function(it){if(it.status==="soon"&&!seen[itemKeyName(it)]){var c=JSON.parse(JSON.stringify(it));c.id=genId();c.carried=true;(c.entries||[]).forEach(function(en){en.photos=[];});items.push(c);}});
   return {items:items,photoJobs:photoJobs};
 }
+function srcDateFromName(n){
+  var m=/(\d{4})-(\d{2})-(\d{2})/.exec(n||"");if(m)return m[1]+"-"+m[2]+"-"+m[3];
+  m=/(\d{2})-(\d{2})-(\d{4})/.exec(n||"");if(m)return m[3]+"-"+m[2]+"-"+m[1];
+  return null;
+}
+function srcKind(n){if(/\.zip$/i.test(n))return 2;if(/daily\s*progress\s*report/i.test(n))return 1;return 0;}
+// Kaynaklar: telefondan seçilen dosyalar ya da Drive'daki dosyalar. Her biri sırayla yüklenir, işlenir, bırakılır
+// (hepsini aynı anda bellekte tutmak telefonu zorluyordu). Var olan günlerin dosyası hiç indirilmez.
 function importReportDays(fileList,onProgress){
-  var files=Array.prototype.slice.call(fileList||[]),parsed=[],zips=[],skipped=[],errors=[],photos=0,added=[],done={},created={};
+  var srcs=Array.prototype.slice.call(fileList||[]).map(function(f){
+    return f.load?f:{name:f.name,load:function(){return readFileAsRetry(f,"buffer");}};
+  });
   var ship=((App.project||{}).shipName||"").toLocaleLowerCase("tr").replace(/^m\/v\s+/,"");
-  var ch=idbReady();
-  files.forEach(function(f,fi){ch=ch.then(function(){onProgress&&onProgress("Okunuyor "+(fi+1)+"/"+files.length);return readFileAsRetry(f,"buffer");}).then(function(buf){
-    var bytes=new Uint8Array(buf);
-    if(/\.zip$/i.test(f.name))return parseDayPhotoZip(bytes,f.name).then(function(z){if(!z.date||!z.photos.length){errors.push(f.name+": günün fotoğraf ZIP'i değil");return;}z.fname=f.name;zips.push(z);});
-    return parseAppReportDocx(bytes).then(function(r){
-      if(!r.date||(r.kind==="app"&&!r.jobs.length)){errors.push(f.name+": tanınmayan rapor");return;}
-      if(ship&&r.head&&r.head.toLocaleLowerCase("tr").indexOf(ship)<0){errors.push(f.name+": başka geminin raporu");return;}
-      r.fname=f.name;parsed.push(r);
-    });
-  }).catch(function(e){errors.push(f.name+": "+(e&&e.message||e));});});
+  srcs.forEach(function(s,i){s.date=srcDateFromName(s.name);s.kind=srcKind(s.name);s.i=i;});
+  // adında tarih olmayan dosyalar: tarihi içinden okunur (sıralama doğru olsun diye)
+  var pre=Promise.resolve();
+  srcs.forEach(function(sx){if(sx.date||sx.kind===2)return;pre=pre.then(function(){
+    return sx.load().then(function(buf){return parseAppReportDocx(new Uint8Array(buf));}).then(function(r){sx.date=r.date;if(r.kind==="en")sx.kind=1;}).catch(function(){});
+  });});
+  return pre.then(function(){return importReportDaysRun(srcs,onProgress,ship);});
+}
+function importReportDaysRun(srcs,onProgress,ship){
+  var skipped=[],errors=[],photos=0,added=[],done={},created={};
+  srcs.sort(function(a,b){var da=a.date||"9999",db=b.date||"9999";if(da!==db)return da<db?-1:1;if(a.kind!==b.kind)return a.kind-b.kind;return a.i-b.i;});
   function savePhotoBytes(data,path){return bytesToDataUrl(data,path).then(function(u){if(!u)return null;var pid="rw"+genId().slice(1);photos++;return idbPut(pid,u).then(function(){return pid;});});}
-  return ch.then(function(){
-    // aynı gün için uygulama raporu İngilizce rapordan önce gelir
-    parsed.sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:(a.kind==="app"?-1:1);});
-    var c2=Promise.resolve();
-    parsed.forEach(function(r){c2=c2.then(function(){
-      var index=getJSON(INDEX_KEY,[])||[];
-      if(index.indexOf(r.date)>=0||done[r.date]){if(skipped.indexOf(r.date)<0&&!done[r.date])skipped.push(r.date);return;}
-      var prevDays=index.filter(function(d){return d<r.date;}).sort();
-      var base=prevDays.length?(getJSON(reportKey(prevDays[prevDays.length-1]),{items:[]}).items||[]):[];
-      App.index=index;
-      var items,pool=[],notes="",c3=Promise.resolve();
-      if(r.kind==="app"){
-        var bd=buildDayFromReport(r,base,r.date);items=bd.items;
-        bd.photoJobs.forEach(function(pj){c3=c3.then(function(){
-          var data=r.files[pj.path];if(!data)return;
-          return bytesToDataUrl(data,pj.path).then(function(u){if(!u)return;photos++;return idbPut(pj.id,u);});
-        });});
-      }else{
-        items=buildCarriedDay(base);
-        notes=r.sentences.filter(function(x){return x.length>12;}).join("\n");
-        r.images.forEach(function(path){c3=c3.then(function(){var data=r.files[path];if(!data)return;return savePhotoBytes(data,path).then(function(pid){if(pid)pool.push(pid);});});});
-      }
-      return c3.then(function(){
-        setJSON(reportKey(r.date),{items:items,pool:pool,notes:notes,planExtra:"",updated:Date.now()});
-        index.push(r.date);index.sort();setJSON(INDEX_KEY,index);
-        done[r.date]=1;created[r.date]=1;added.push(r.date);
-        onProgress&&onProgress(added.length+" gün eklendi · "+photos+" fotoğraf");
+  function applyReport(r){
+    var index=getJSON(INDEX_KEY,[])||[];
+    if(index.indexOf(r.date)>=0||done[r.date]){if(skipped.indexOf(r.date)<0&&!done[r.date])skipped.push(r.date);return Promise.resolve();}
+    var prevDays=index.filter(function(d){return d<r.date;}).sort();
+    var base=prevDays.length?(getJSON(reportKey(prevDays[prevDays.length-1]),{items:[]}).items||[]):[];
+    App.index=index;
+    var items,pool=[],notes="",c3=Promise.resolve();
+    if(r.kind==="app"){
+      var bd=buildDayFromReport(r,base,r.date);items=bd.items;
+      bd.photoJobs.forEach(function(pj){c3=c3.then(function(){
+        var data=r.files[pj.path];if(!data)return;
+        return bytesToDataUrl(data,pj.path).then(function(u){if(!u)return;photos++;return idbPut(pj.id,u);});
+      });});
+    }else{
+      items=buildCarriedDay(base);
+      notes=r.sentences.filter(function(x){return x.length>12;}).join("\n");
+      r.images.forEach(function(path){c3=c3.then(function(){var data=r.files[path];if(!data)return;return savePhotoBytes(data,path).then(function(pid){if(pid)pool.push(pid);});});});
+    }
+    return c3.then(function(){
+      setJSON(reportKey(r.date),{items:items,pool:pool,notes:notes,planExtra:"",updated:Date.now()});
+      index.push(r.date);index.sort();setJSON(INDEX_KEY,index);
+      done[r.date]=1;created[r.date]=1;added.push(r.date);
+    });
+  }
+  function applyZip(z){
+    if(!created[z.date]){errors.push(z.fname+": bu gün için önce raporu ekleyin");return Promise.resolve();}
+    var rep=getJSON(reportKey(z.date),{items:[]}),byFile={};
+    (rep.items||[]).forEach(function(it){var k=fileSafeJob([it.job,it.title].filter(function(x){return x&&x.trim();}).join(" - "));if(!byFile[k])byFile[k]=it;});
+    rep.pool=rep.pool||[];var c4=Promise.resolve();
+    z.photos.forEach(function(ph){c4=c4.then(function(){
+      var bn=ph.name.replace(/^.*\//,"").replace(/\.\w+$/,""),m=/^(.*?)(?:-asama(\d+))?-(\d+)$/.exec(bn),key=m?m[1]:bn,st=m&&m[2]?(+m[2]-1):0;
+      var it=byFile[key]||byFile[key.replace(/-\d+$/,"")];
+      return savePhotoBytes(ph.data,ph.name).then(function(pid){if(!pid)return;
+        if(it){if(!it.entries||!it.entries.length)it.entries=[{name:"",status:it.status||"devam",photos:[]}];var en=it.entries[Math.min(st,it.entries.length-1)];en.photos=(en.photos||[]).concat([pid]);}
+        else rep.pool.push(pid);
       });
     });});
-    // günün fotoğraf ZIP'leri: dosya adındaki iş adına göre işe, bulunamazsa havuza (sadece bu seferde oluşturulan günlere)
-    zips.forEach(function(z){c2=c2.then(function(){
-      if(!created[z.date]){errors.push(z.fname+": bu gün için önce raporu ekleyin");return;}
-      var rep=getJSON(reportKey(z.date),{items:[]}),byFile={};
-      (rep.items||[]).forEach(function(it){var k=fileSafeJob([it.job,it.title].filter(function(x){return x&&x.trim();}).join(" - "));if(!byFile[k])byFile[k]=it;});
-      rep.pool=rep.pool||[];var c4=Promise.resolve(),matched=0;
-      z.photos.forEach(function(ph){c4=c4.then(function(){
-        var base=ph.name.replace(/^.*\//,"").replace(/\.\w+$/,""),m=/^(.*?)(?:-asama(\d+))?-(\d+)$/.exec(base),key=m?m[1]:base,st=m&&m[2]?(+m[2]-1):0;
-        var it=byFile[key]||byFile[key.replace(/-\d+$/,"")];
-        return savePhotoBytes(ph.data,ph.name).then(function(pid){if(!pid)return;
-          if(it){if(!it.entries||!it.entries.length)it.entries=[{name:"",status:it.status||"devam",photos:[]}];var en=it.entries[Math.min(st,it.entries.length-1)];en.photos=(en.photos||[]).concat([pid]);matched++;}
-          else rep.pool.push(pid);
-        });
-      });});
-      return c4.then(function(){rep.updated=Date.now();setJSON(reportKey(z.date),rep);onProgress&&onProgress(added.length+" gün · "+photos+" fotoğraf");});
-    });});
-    return c2;
-  }).then(function(){
+    return c4.then(function(){rep.updated=Date.now();setJSON(reportKey(z.date),rep);});
+  }
+  var ch=idbReady();
+  srcs.forEach(function(sx,fi){ch=ch.then(function(){
+    // var olan günün dosyasını hiç indirme (ZIP: sadece bu seferde kurulan günler)
+    var index=getJSON(INDEX_KEY,[])||[];
+    if(sx.date&&sx.kind!==2&&(index.indexOf(sx.date)>=0||done[sx.date])){if(skipped.indexOf(sx.date)<0&&!done[sx.date])skipped.push(sx.date);return;}
+    if(sx.date&&sx.kind===2&&!created[sx.date]&&index.indexOf(sx.date)>=0)return;
+    onProgress&&onProgress("İşleniyor "+(fi+1)+"/"+srcs.length+" · "+sx.name+(added.length?" · "+added.length+" gün eklendi":""));
+    return sx.load().then(function(buf){
+      var bytes=new Uint8Array(buf);
+      if(/\.zip$/i.test(sx.name))return parseDayPhotoZip(bytes,sx.name).then(function(z){if(!z.date||!z.photos.length){errors.push(sx.name+": günün fotoğraf ZIP'i değil");return;}z.fname=sx.name;return applyZip(z);});
+      return parseAppReportDocx(bytes).then(function(r){
+        if(!r.date||(r.kind==="app"&&!r.jobs.length)){errors.push(sx.name+": tanınmayan rapor");return;}
+        if(ship&&r.head&&r.head.toLocaleLowerCase("tr").indexOf(ship)<0){errors.push(sx.name+": başka geminin raporu");return;}
+        return applyReport(r);
+      });
+    }).catch(function(e){errors.push(sx.name+": "+(e&&e.message||e));});
+  });});
+  return ch.then(function(){
     loadAll();invalidateChainCache();
     try{persistActiveToSlot();}catch(e){}
     return {added:added,skipped:skipped,errors:errors,photos:photos};
@@ -7463,7 +7587,7 @@ function doRestore(files){
   if(jsons.length>1){toast("Tek bir veri dosyası seçin (fotoğraf ZIP'leri birden çok olabilir)");return;}
   // çok büyük eski yedek tek parça okunamaz ve olduğu gibi geri yüklemek açık gemiyi siler: ayrı gemi olarak ekle
   if(jsons.length&&jsons[0].size>150*1024*1024){
-    if(confirm("Bu yedek çok büyük, olduğu gibi geri yüklenemez. Yedekteki gemiler fotoğraflarıyla AYRI gemi olarak eklensin mi? Açık gemiye dokunulmaz.")){App.backupSheet=App.backupSheet||{status:null};startImportShips(jsons[0]);}
+    if(confirm("Bu yedek büyük olduğu için parça parça okunacak. Yedekteki gemiler fotoğraflarıyla eklenecek; var olan gemilere dokunulmaz. Başlansın mı?"))importShipsWithOverlay(jsons[0]);
     return;
   }
   var summary={data:false,photos:0,legacy:false};
@@ -7602,7 +7726,7 @@ function bindSetup(){
     var c=driveCfg(),inp=document.getElementById("su-drv-cid"),msg=document.getElementById("su-drv-msg");
     if(inp){var v=(inp.value||"").trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast("Client ID apps.googleusercontent.com ile bitmeli");return;}c.clientId=v;driveSaveCfg(c);}
     driveSignIn(false).then(function(){if(msg)msg.textContent="Drive’daki işler alınıyor…";return driveFetchData();}).then(function(d){
-      if(!d){if(msg)msg.textContent="Drive’da henüz GemiTakip kaydı yok.";return;}
+      if(!d){if(msg)msg.textContent="";openDriveFilesPanel();return;}
       doRestore([new File([d.text],"gemitakip-veri.json",{type:"application/json"})]);
       driveAfterRestorePhotos();
     }).catch(function(e){if(msg)msg.textContent="Olmadı: "+(e&&e.message||e);});
