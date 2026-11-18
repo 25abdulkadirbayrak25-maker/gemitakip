@@ -325,7 +325,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-17d";
+var APP_BUILD="2026-11-18e";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7075,7 +7075,7 @@ function mountBackupSheet(){
   h+='<div style="border:1.5px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:11px 12px;margin-bottom:16px">';
   h+='<div style="font-size:12px;font-weight:800;color:#1d4ed8;margin-bottom:4px">DRIVE EŞİTLEME</div>';
   h+='<div style="font-size:12.5px;color:var(--t2);line-height:1.5;margin-bottom:8px">Her fotoğraf ve iş kaydı kendiliğinden Drive’ınızdaki GemiTakip klasörüne de yazılır. Telefon depoyu silse bile buradan geri gelir.</div>';
-  h+='<div id="drv-status" style="font-size:12.5px;color:var(--t2);margin-bottom:8px">'+driveStatusText()+'</div>';
+  h+='<div id="drv-status" style="font-size:12.5px;color:var(--t2);margin-bottom:8px">'+driveStatusText()+' <span style="font-size:10.5px;color:var(--t4)">· sürüm '+APP_BUILD+'</span></div>';
   if(!_dc.clientId){
     h+='<input class="in" id="drv-cid" placeholder="Google Client ID (…apps.googleusercontent.com)" style="margin-bottom:8px"/>';
     h+='<button class="btn btn-navy" id="drv-connect" style="width:100%;padding:11px">'+I("upload")+' Kaydet ve Drive’a bağlan</button>';
@@ -7715,6 +7715,7 @@ function setupHTML(){
   if(!_sc.clientId)h+='<input class="in" id="su-drv-cid" placeholder="Google Client ID" style="margin-top:6px"/>';
   h+='<button class="btn btn-navy" id="su-drive" style="width:100%;padding:12px;margin-top:6px">'+I("upload")+' Drive’dan kur</button>';
   h+='<div id="su-drv-msg" style="font-size:12px;color:var(--t3);margin-top:6px;text-align:center"></div>';
+  h+='<div style="font-size:10.5px;color:var(--t4);margin-top:14px;text-align:center">Sürüm '+APP_BUILD+'</div>';
   h+='</div></div></div>';
   return h;
 }
@@ -7755,7 +7756,7 @@ function bindSetup(){
   try{App.showPreview=(getJSON(PREVIEW_KEY,true)!==false);}catch(e){}
   loadSlotStore().then(function(){try{repairSlots();}catch(e){}});   // arşivler yüklenince listeyi gerçek verilerle hizala
   requestPersist();
-  try{if(location.protocol==="https:"&&navigator.serviceWorker)navigator.serviceWorker.register("sw.js").catch(function(){});}catch(e){}
+  try{if(location.protocol==="https:"&&navigator.serviceWorker)navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(function(){});}catch(e){}
   driveInit();
   setTimeout(checkPhotoStoreWiped,2500);
   var t=new Date();App.calY=t.getFullYear();App.calM=t.getMonth();
