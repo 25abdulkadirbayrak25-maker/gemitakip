@@ -148,7 +148,7 @@ main{padding:18px 0 40px;}
 .jobidx-fab{position:fixed;left:14px;bottom:18px;z-index:25;display:flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;padding:10px 14px;font-size:13px;font-weight:700;box-shadow:0 6px 18px rgba(11,31,51,.35);}
 .cal-cell .cs{display:block;font-size:9px;line-height:1.1;margin-top:1px;font-weight:700;letter-spacing:.2px;}
 .cal-cell .cs .cd{color:#15803d;}.cal-cell .cs .cb{color:#7c3aed;}
-.calpop{position:fixed;z-index:70;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(11,31,51,.25);padding:10px 12px;max-width:340px;max-height:70vh;overflow-y:auto;line-height:1.45;font-size:12px;color:var(--t2);}
+.calpop{pointer-events:none;position:fixed;z-index:70;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(11,31,51,.25);padding:10px 12px;max-width:340px;max-height:92vh;overflow:hidden;line-height:1.45;font-size:12px;color:var(--t2);}
 .calpop b{color:var(--navy);}
 
 .paper{background:#fff;max-width:820px;margin:0 auto 30px;padding:34px 40px 40px;border-radius:4px;box-shadow:0 2px 4px rgba(11,31,51,.08),0 12px 40px rgba(11,31,51,.12);font-family:Arial,Helvetica,sans-serif;color:#1a1a2e;font-size:13.5px;line-height:1.45;}
@@ -397,7 +397,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-19m";
+var APP_BUILD="2026-11-19n";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -806,6 +806,62 @@ function itemFromTemplate(tpl,dateISO){
     status:"started",progress:0,entries:entries};
 }
 // Aynı iş başlığı için daha önce kullanılmış aşama listesini bulur (otomatik kalıp eşleşmesi)
+
+/* ===== Kalıp önerileri: Gallipoli ve Olympos'taki 377 işten çıkarılan aşama sıraları =====
+   Yeni iş açarken başlığa (ve gerekirse lokasyona) göre ÖNERİ olarak gösterilir; kendiliğinden uygulanmaz.
+   t: bu öneriyi tetikleyen iş başlıkları, j: lokasyonda geçmesi gereken kelimeler (projeye özel kalıplar). */
+var SUGGEST_TPLS=[
+ {n:"Scrubber Tower - Upgrade Works",t:["upgrade works","upgrade","modification"],j:["scrubber"],s:["Tower Cleaning","Inspection","Sensor Protection","Scaffolding for Pipe and Insulation Dismounting","Insulation Dismounting","Exhaust Pipe Dismounting","Old Mushroom Cutting","Surface Preparation","New Mushroom Transfer","New Mushroom Welding","New Inlet Pipe Transfer","New Inlet Pipe Welding","New Level Pipe Welding","Crack Welding"]},
+ {n:"Bilge Well - Pipe Works",t:["pipe works","pipe mounting","pipe renewing"],j:["bilge well"],s:["Transfer","Scaffolding","Old Pipe Blinding","Cutting","Assembly","Doubler Flange Welding","Float Switch Doubler Welding","Float Switch Mounting","Check Valve Mounting","Pipes Leakage Test","Hydrostatic Test","Suction Filter Mounting","Pneumatic Test","Painting"]},
+ {n:"Bilge Well - Steel Works",t:["steel works","steel renewing","steel assembly","steel cutting","steel welding"],j:["bilge well"],s:["Manhole Opening","Gas Free","Marking","Cutting","Plate Installation","Welding","Hydrostatic Test","Grating Mounting","Painting"]},
+ {n:"Old Bilge Well - Blinding",t:["blinding","blanking"],j:["bilge well"],s:["Surface Preparation","Old Float Switch Dismounting","Pipe Blinding","Cleaning","Plate Mounting","Plate Welding","Grinding","Foam"]},
+ {n:"Fire Gun - Installation",t:["installation","pipe mounting","cable pulling","mounting"],j:["fire gun"],s:["Scaffolding","Pipe Mounting","Pipe Penetration and Support Welding","Cable Pulling","Actuator Connection","Gun Connection","Pressure Test"]},
+ {n:"CPP - Hub Renewing",t:["hub","hub renewing"],j:["cpp","propeller"],s:["Oil Drain","Blade Dismounting","Shaft Aft Coupling","Shaft Pulling","Hub Renewing","Mounting","Shaft Coupling","Propeller Blades","MPI","Dye Penetrant Test"]},
+ {n:"Rudder - Bearings Renewing",t:["bearings renewing","bearing renewing","bearing"],j:["rudder"],s:["Gas Free","Nut Access","Nut Removal","Rudder Dismounting","Old Neck Bearing Dismounting","Housing Bush Measurement","Rudder Stock Measurement","Rudder Stock Dismounting","Tiller Dismounting","Old Carrier Bearing Removing","Carrier Bearing Renewing","New Thordon Bearing","Rudder Blade Mounting"]},
+ {n:"DG - Overhaul",t:["overhaul","20000 hrs overhaul","unit overhaul"],j:["dg","generator"],s:["Dismounting","Unit Overhaul","Piston Pin UT","Crankshaft Vibration Damper","LO Coupled Pump","Mounting","Test Run"]},
+ {n:"Electrical Motor - Overhaul",t:["overhaul","maintenance"],j:["electrical motor","motor"],s:["Dismounting","Transfer to Workshop","Bearing Renewing","Insulation Test","Mounting","Test Run"]},
+ {n:"Hull - Painting",t:["painting","blasting and painting"],j:["hull"],s:["High Pressure Washing","Blasting","Vertical and Flat Bottom (Silicone)","Boottop (Blue)","Topside (White)","Hull Logo and Hull Markings"]},
+ {n:"Seachests - Cleaning and Painting",t:["cleaning and painting","cleaning","painting","blasting and painting"],j:["seachest","sea chest"],s:["Grating Opening","High Pressure Washing","Blasting","1st Coat Painting","2nd Coat Painting","Grating Closing"]},
+ {n:"Hatch Cover - Gasket Channel Renewing",t:["gasket channel renewing","gasket channel"],j:["hatch cover"],s:["Cutting","Welding","Pressure Washing","Coaming Area","Painting"]},
+ {n:"Davit / Crane - Steel Rope Renewing",t:["steel rope renewing","steel rope","wire rope"],j:["davit","crane"],s:["Dismounting","Steel Rope Renewing","Hydraulic Unit Maintenance","Load Test"]},
+ {n:"Boiler - Valve Overhaul",t:["valve overhaul"],j:["boiler"],s:["Safety Valves Dismounting","Other Valves Dismantling","Overhaul","Mounting","Safety Valve Setting Test"]},
+ {n:"Coolers - Cleaning",t:["cleaning","maintenance"],j:["cooler"],s:["Dismounting","Transfer","Cleaning","Mounting","Pressure Test"]},
+ {n:"Tanks - Cleaning",t:["cleaning","tank cleaning"],j:["tk","tank","sump","sludge","bilge"],s:["Manhole Opening","Gas Free","Cleaning","Sludge Disposing","Inspection","Manhole Closing"]},
+ {n:"Steel Renewing",t:["steel renewing","steel renewal","steel works","steel assembly","steel cutting","steel welding","plate renewing"],s:["Marking","Scaffolding","Cutting","Plate Installation","Welding","Pneumatic Test","Painting"]},
+ {n:"Renewing",t:["renewing","renewal","changing","replacement","removal","stopper renewing","manhole renewing"],s:["Dismounting","Transfer","Renewing","Mounting","Test"]},
+ {n:"Maintenance",t:["maintenance","service","hydraulic unit maintenance","hidrolik unit maintenance"],s:["Dismounting","Transfer","Dismantling","Cleaning","Overhaul","Painting","Mounting","Test"]},
+ {n:"Overhaul",t:["overhaul","unit overhaul","valve overhaul","20000 hrs overhaul"],s:["Dismounting","Unit Overhaul","Measurement","Mounting","Test Run"]},
+ {n:"Blasting and Painting",t:["blasting and painting","painting","blasting","protection"],s:["Protection","High Pressure Washing","Blasting","1st Coat Painting","2nd Coat Painting","Last Coat Painting"]},
+ {n:"Cleaning and Painting",t:["cleaning and painting"],s:["Protection","High Pressure Washing","Mechanical Treatment","1st Coat Painting","Last Coat Painting"]},
+ {n:"Cleaning",t:["cleaning"],s:["Manhole Opening","Gas Free","Cleaning","Sludge Disposing","Inspection","Manhole Closing"]},
+ {n:"Pipe Works",t:["pipe works","pipe mounting","pipe renewing","renewing steam pipe","modification"],s:["Transfer","Scaffolding","Old Pipe Blinding","Cutting","Assembly","Welding","Hydrostatic Test","Painting"]},
+ {n:"Gasket Renewing",t:["gasket renewing","gasket renewal","gasket channel renewing"],s:["Old Gasket Removing","Mechanical Treatment","Painting","Gasket Renewing","Chalk Test","Hose Test"]},
+ {n:"Installation",t:["installation","mounting","cable pulling","new turnbuckle installation","heating cable installation"],s:["Transfer","Scaffolding","Installation","Welding","Cable Pulling","Test"]},
+ {n:"Blinding",t:["blinding","blanking"],s:["Surface Preparation","Dismounting","Pipe Blinding","Plate Mounting","Plate Welding","Grinding"]},
+ {n:"High Pressure Washing",t:["high pressure washing","hp washing","washing"],s:["Scaffolding","High Pressure Washing"]},
+ {n:"Access",t:["access","access works"],s:["Scaffolding","Protection","Cutting","Mounting"]},
+ {n:"Inspection",t:["inspection","measurement","thickness measurement","control and test","test"],s:["Opening","Inspection","Closing"]},
+ {n:"Welding",t:["welding","doubler welding","grinding"],s:["Surface Preparation","Welding","Grinding"]}
+];
+function suggestTemplate(title,job){
+  var t=String(title||"").trim().toLocaleLowerCase("tr").replace(/\s+/g," "),j=" "+String(job||"").toLocaleLowerCase("tr")+" ";
+  if(!t)return null;
+  function tm(x){return x.t.some(function(a){return t===a||(t.indexOf(a)>=0&&a.length>=6);});}
+  for(var i=0;i<SUGGEST_TPLS.length;i++){var x=SUGGEST_TPLS[i];
+    if(x.j&&tm(x)&&x.j.some(function(w){return j.indexOf(w.length<=3?(" "+w):w)>=0;}))return x;}
+  for(var k=0;k<SUGGEST_TPLS.length;k++){var y=SUGGEST_TPLS[k];if(!y.j&&tm(y))return y;}
+  return null;
+}
+function suggestBoxHTML(d){
+  var x=suggestTemplate(d.title,d.job);if(!x)return "";
+  var cur=(d.entries||[]).map(function(en){return (en.name||"").trim();}).filter(Boolean).join("|");
+  if(cur===x.s.join("|"))return "";
+  return '<div id="ed-suggest" style="border:1px dashed #93c5fd;background:#eff6ff;border-radius:12px;padding:9px 11px;margin:0 0 10px">'+
+    '<div style="font-size:12px;font-weight:800;color:#1d4ed8">Öneri · '+esc(x.n)+'</div>'+
+    '<div style="font-size:12px;color:var(--t2);margin:3px 0 7px;line-height:1.45">'+x.s.map(esc).join(" → ")+'</div>'+
+    '<button type="button" class="btn btn-out" id="ed-suggest-use" style="padding:6px 12px;font-size:12px;color:#1d4ed8;border-color:#93c5fd">Bu aşamaları kullan</button>'+
+    '<button type="button" id="ed-suggest-x" style="margin-left:8px;font-size:12px;color:var(--t3);background:none">Gizle</button></div>';
+}
 function findTemplateForTitle(title,job){
   var t=(title||"").trim().toLocaleLowerCase("tr");
   if(!t)return null;
@@ -2186,7 +2242,7 @@ function dxPhotos(dx,ids,ctxMap,sizeMap,vanish){
 function dxSummaryButton(anchor,label,o){
   o=o||{};var id=(dxSummaryButton._n=(dxSummaryButton._n||0)+1);
   var box='<w:r><w:rPr><w:noProof/><w:sz w:val="2"/></w:rPr><w:pict>'+
-    '<v:rect id="smbtn'+id+'" style="position:absolute;margin-left:0;margin-top:1pt;width:74pt;height:16pt;z-index:'+(251660000+id)+';mso-position-horizontal:right;mso-position-horizontal-relative:margin;mso-position-vertical-relative:line" fillcolor="#EFF6FF" strokecolor="#93C5FD" strokeweight=".5pt">'+
+    '<v:rect id="smbtn'+id+'" style="position:absolute;margin-left:0;margin-top:20pt;width:74pt;height:16pt;z-index:'+(251660000+id)+';mso-position-horizontal:right;mso-position-horizontal-relative:margin;mso-position-vertical-relative:page" fillcolor="#EFF6FF" strokecolor="#93C5FD" strokeweight=".5pt">'+
     '<v:textbox inset="1pt,1pt,1pt,0"><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="0" w:after="0"/></w:pPr>'+
     '<w:hyperlink w:anchor="'+anchor+'" w:history="1"><w:r><w:rPr><w:b/><w:sz w:val="15"/><w:color w:val="1D4ED8"/></w:rPr><w:t xml:space="preserve">▲ '+xesc(label||"Summary")+'</w:t></w:r></w:hyperlink>'+
     '</w:p></w:txbxContent></v:textbox></v:rect></w:pict></w:r>';
@@ -2797,7 +2853,7 @@ function draftBlocksToDocx(d){
       var capRuns=(b.num?dxText(b.num+". ",{b:true,sz:10.5,color:"EA7317"}):"")+dxText(b.text||"",{b:true,sz:10.5,color:"0B1F33"});
       var _btn=_en&&tocAnc;
       if(_btn)dx.body+=dxSummaryButton(tocAnc,"Summary",{pageBreakBefore:!!b.pageBreak,before:(b.pageBreak?0:160)});
-      dx.body+=dxPara(capRuns,{pageBreakBefore:!_btn&&!!b.pageBreak,spacingBefore:(_btn?40:(b.pageBreak?0:160)),spacingAfter:0,keepNext:true,keepLines:true,bookmark:b.anchor||null,indRight:(_btn?1650:0)});
+      dx.body+=dxPara(capRuns,{pageBreakBefore:!_btn&&!!b.pageBreak,spacingBefore:(_btn?0:(b.pageBreak?0:160)),spacingAfter:0,keepNext:true,keepLines:true,bookmark:b.anchor||null});
     }
     else if(b.type==="extranote"){ // fotoğraf başlığının bir alt satırı
       if((b.text||"").trim())dx.body+=dxPara(dxText(b.text,{sz:10,color:"334155",i:true}),{spacingBefore:0,spacingAfter:60,keepNext:true,keepLines:true});
@@ -3256,7 +3312,7 @@ function itemsListHTML(){
         var nm=(en.name||"").trim();
         if(!nm)nm=(_ens.length>1?("Aşama "+(ei+1)):"Durum");
         var mark=(es==="tamam")?'<span class="sck">✓</span>':'<span class="sdot" style="background:'+ss.dot+'"></span>';
-        stageBar+='<button class="schip'+(es==="tamam"?" sdone":"")+'" data-stg="'+it.id+'|'+ei+'" title="'+esc(nm)+' — '+ss.label+' · değiştirmek için dokun" style="color:'+ss.tx+';background:'+ss.bg+';border-color:'+ss.ring+'">'+mark+'<span class="snm">'+esc(nm)+'</span></button>';
+        stageBar+='<span class="schip'+(es==="tamam"?" sdone":"")+'" title="'+esc(nm)+' — '+ss.label+'" style="color:'+ss.tx+';background:'+ss.bg+';border-color:'+ss.ring+'">'+mark+'<span class="snm">'+esc(nm)+'</span></span>';
       });
       stageBar+='</div>';
     }
@@ -3320,7 +3376,7 @@ function sgDayHTML(gk,m){
     if(ids.length){h+='<div class="sg-ph">';ids.forEach(function(pid,i){var u=thumbData(pid)||photoData(pid);
       h+=u?'<img src="'+u+'" data-sgph="'+esc(k)+'" data-pi="'+i+'" loading="lazy"/>':'<div class="sg-ph0" data-sgph="'+esc(k)+'" data-pi="'+i+'">…</div>';});h+='</div>';}
     else h+='<div style="font-size:12px;color:var(--t4)">Bu gün fotoğraf yok.</div>';
-    h+='<button class="sg-go" data-sggo="'+m.date+'|'+esc(it.id)+'">Bu işi o günde aç ›</button></div>';
+    h+='<button class="sg-go" data-sggo="'+m.date+'|'+esc(it.id)+'">Bu işi o günde aç ›</button>'+(ids.length?' <button class="sg-go" data-sgshare="'+esc(k)+'" style="color:#15803d;background:#f0fdf4;border-color:#bbf7d0">'+I("upload")+' '+ids.length+' fotoğrafı paylaş / indir</button>':'')+'</div>';
   }
   return h+'</div>';
 }
@@ -3364,6 +3420,11 @@ function bindSearchGroups(root){
     App.lbList=list;App.lbIdx=Math.min(start,list.length-1);App.lightbox=list[App.lbIdx].url;render();
   };});
   Array.prototype.forEach.call(root.querySelectorAll("[data-sggo]"),function(b){b.onclick=function(){var p=b.getAttribute("data-sggo").split("|");goToItem(p[0],p[1]);};});
+  Array.prototype.forEach.call(root.querySelectorAll("[data-sgshare]"),function(b){b.onclick=function(){
+    var k=b.getAttribute("data-sgshare"),gk=k.slice(0,k.lastIndexOf("@")),dt=k.slice(k.lastIndexOf("@")+1),g=(App._sgGroups||{})[gk];if(!g)return;
+    var m=g.days.filter(function(x){return x.date===dt;})[0];if(!m)return;
+    sharePhotos(itemPhotoIds(m.it),[m.it.job,m.it.title].filter(Boolean).join(" - "),dt,b);
+  };});
 }
 // Önceki rapor gününde "yarın bitecek" denen işlerin zincirleri: {chainId:true}
 function promisedYesterday(dateISO){
@@ -3427,25 +3488,6 @@ function addPhotosToItem(itemId,fileList){
 }
 // Kart üzerinden aşama durumu döngüsü: Planned → Commenced → Ongoing → Completed → Planned
 var STAGE_CYCLE=["planlandi","started","devam","tamam"];
-function cycleStageStatus(itemId,ei){
-  var it=null;
-  for(var i=0;i<App.items.length;i++)if(App.items[i].id===itemId){it=App.items[i];break;}
-  if(!it||!it.entries||!it.entries[ei])return;
-  var en=it.entries[ei];
-  var cur=en.status||(en.done?"tamam":"devam");
-  var ci=STAGE_CYCLE.indexOf(cur);
-  var next=(ci<0)?"devam":STAGE_CYCLE[(ci+1)%STAGE_CYCLE.length]; // Waiting/Soon -> Ongoing
-  en.status=next;en.done=(next==="tamam");
-  if(next==="tamam"){if(!en.doneDate)en.doneDate=App.selectedDate;}
-  else en.doneDate="";                 // Completed'ten çıkınca eski tarih kalmasın
-  it.status=deriveItemStatus(it);
-  it.progress=itemProgressPct(it);
-  if(it.carried)it.carried=false;      // iş güncellendi -> "aktarıldı" uyarısı kalksın
-  saveDayItems(App.selectedDate,App.items);
-  var nm=(en.name||"").trim()||("Aşama "+(ei+1));
-  toast(nm+" → "+st(next).label);
-  render();
-}
 function bindItemEvents(){
   var cardFile=document.getElementById("card-file");
   if(cardFile)cardFile.onchange=function(ev){addPhotosToItem(App._cardPhotoTarget,ev.target.files);ev.target.value="";};
@@ -3459,15 +3501,6 @@ function bindItemEvents(){
   });
   Array.prototype.forEach.call(document.querySelectorAll("[data-finish]"),function(b){
     b.onclick=function(ev){if(ev&&ev.stopPropagation)ev.stopPropagation();finishItem(b.getAttribute("data-finish"));};
-  });
-  Array.prototype.forEach.call(document.querySelectorAll("[data-stg]"),function(b){
-    b.onclick=function(ev){
-      if(ev&&ev.stopPropagation)ev.stopPropagation();
-      if(ev&&ev.preventDefault)ev.preventDefault();
-      if(App.selectMode)return;
-      var p=(b.getAttribute("data-stg")||"").split("|");
-      cycleStageStatus(p[0],Number(p[1]));
-    };
   });
   Array.prototype.forEach.call(document.querySelectorAll("[data-edit]"),function(b){b.onclick=function(){openEditItem(b.getAttribute("data-edit"));};});
   Array.prototype.forEach.call(document.querySelectorAll("[data-grp]"),function(b){b.onclick=function(){var g=b.getAttribute("data-grp");App.collapsed[g]=!App.collapsed[g];var wrap=document.getElementById("items-wrap");if(wrap){wrap.innerHTML=itemsListHTML();bindItemEvents();}};});
@@ -3570,7 +3603,7 @@ function dayHTML(){
     if(!(carryPending.length>0&&App.carryHidden!==App.selectedDate))h+='<div class="empty">'+I("wrench")+'<p>Bu güne henüz iş eklenmedi.</p><div class="s">İlk işi eklemek için "Yeni İş"e dokunun.</div></div>';
   }else{
     if(getJSON(STGTIP_KEY,false)!==true){
-      h+='<div id="stg-tip" style="display:flex;align-items:flex-start;gap:8px;margin:4px 2px 10px;padding:9px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:12px;color:#1e40af;line-height:1.45"><span style="flex-shrink:0;margin-top:1px">'+I("info")+'</span><span style="flex:1">Kartın altındaki <b>aşama rozetlerine</b> dokunarak durumu değiştirebilirsin: Planned → Commenced → Ongoing → Completed. <b>EN</b> düğmesi rapor cümlesi önizlemesini açıp kapatır.</span><button id="stg-tip-x" style="flex-shrink:0;color:#1e40af;width:22px;height:22px;display:grid;place-items:center">'+I("x")+'</button></div>';
+      h+='<div id="stg-tip" style="display:flex;align-items:flex-start;gap:8px;margin:4px 2px 10px;padding:9px 10px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:12px;color:#1e40af;line-height:1.45"><span style="flex-shrink:0;margin-top:1px">'+I("info")+'</span><span style="flex:1">Aşamaların durumunu değiştirmek için işe dokunup düzenleme ekranını açın; kartın altındaki rozetler sadece durumu gösterir. <b>EN</b> düğmesi rapor cümlesi önizlemesini açıp kapatır.</span><button id="stg-tip-x" style="flex-shrink:0;color:#1e40af;width:22px;height:22px;display:grid;place-items:center">'+I("x")+'</button></div>';
     }
     h+='<div id="items-wrap">'+itemsListHTML()+'</div>';
     h+='<input type="file" id="card-file" accept="image/*" multiple style="display:none"/>';
@@ -3624,7 +3657,7 @@ function bindCalendar(){
     var dt=b.getAttribute("data-date"),lp=null,longed=false;
     b.onclick=function(ev){if(longed){longed=false;ev.preventDefault();return;}hideCalPop();openDay(dt);};
     b.onmouseenter=function(){if(matchMedia("(hover:hover)").matches)showCalPop(b,dt);};
-    b.onmouseleave=function(ev){var to=ev.relatedTarget;if(to&&to.closest&&to.closest(".calpop"))return;hideCalPop();};
+    b.onmouseleave=hideCalPop;
     b.addEventListener("touchstart",function(){longed=false;lp=setTimeout(function(){longed=true;showCalPop(b,dt);setTimeout(function(){document.addEventListener("touchstart",hideCalPop,{once:true});},50);},500);},{passive:true});
     b.addEventListener("touchend",function(){clearTimeout(lp);},{passive:true});
     b.addEventListener("touchmove",function(){clearTimeout(lp);},{passive:true});
@@ -4013,13 +4046,129 @@ function showCalPop(cell,dt){
   if(sm.done.length)h+='<div style="margin-top:4px"><b style="color:#15803d">✓ Biten ('+sm.done.length+')</b><div>'+sm.done.map(esc).join("<br>")+'</div></div>';
   if(sm.started.length)h+='<div style="margin-top:6px"><b style="color:#7c3aed">▶ Başlayan ('+sm.started.length+')</b><div>'+sm.started.map(esc).join("<br>")+'</div></div>';
   p.innerHTML=h;document.body.appendChild(p);
-  p.onmouseleave=function(ev){var to=ev.relatedTarget;if(to&&to.closest&&to.closest('[data-date="'+dt+'"]'))return;hideCalPop();};
+  var tot=sm.done.length+sm.started.length;if(tot>14){p.style.maxWidth="560px";p.style.columnCount="2";p.style.columnGap="18px";}if(tot>36)p.style.fontSize="10.5px";
   var r=cell.getBoundingClientRect(),pw=p.offsetWidth,ph=p.offsetHeight,W=window.innerWidth,H=window.innerHeight;
   var x=Math.min(Math.max(8,r.left+r.width/2-pw/2),W-pw-8),y=r.bottom+6;if(y+ph>H-8)y=Math.max(8,r.top-ph-6);
   p.style.left=x+"px";p.style.top=y+"px";
 }
 function hideCalPop(){Array.prototype.forEach.call(document.querySelectorAll("body > .calpop"),function(n){n.parentNode.removeChild(n);});}
 
+
+/* Seçilen fotoğrafları paylaş (WhatsApp, e-posta…) ya da indir. Tam boy fotoğraflar kullanılır.
+   Telefonda paylaşım menüsü açılır; bilgisayarda ya da paylaşım yoksa dosyalar indirilir (çoksa tek ZIP). */
+function sharePhotos(ids,label,dateISO,btn){
+  if(!ids||!ids.length)return Promise.resolve();
+  var old=btn?btn.innerHTML:"";if(btn){btn.disabled=true;btn.textContent="Hazırlanıyor…";}
+  var base=safeFileName((label||"Fotograflar")+(dateISO?" "+dateISO:""));
+  return ensurePhotos(ids).then(function(){
+    var files=[];
+    ids.forEach(function(id,i){var u=photoMem[id]||photoData(id);if(!u)return;var b=dataUrlToBlob(u);if(!b)return;
+      var ext=/png/.test(b.type)?"png":"jpg";files.push(new File([b],base+" "+String(i+1).padStart(2,"0")+"."+ext,{type:b.type||"image/jpeg"}));});
+    if(!files.length){toast("Fotoğraflar yüklenemedi (internet ya da Drive bağlantısını kontrol edin)");return;}
+    if(files.length<ids.length)toast((ids.length-files.length)+" fotoğraf yüklenemedi, kalanlar gönderiliyor");
+    var canShare=false;try{canShare=!!(navigator.share&&navigator.canShare&&navigator.canShare({files:files}));}catch(e){}
+    var touch=matchMedia("(hover:none)").matches;
+    if(canShare&&touch){
+      return navigator.share({files:files,title:label||"Fotoğraflar"}).catch(function(err){
+        if(err&&err.name==="AbortError")return;
+        downloadPhotoFiles(files,base);
+      });
+    }
+    downloadPhotoFiles(files,base);
+  }).catch(function(){toast("Paylaşılamadı");}).then(function(){if(btn){btn.disabled=false;btn.innerHTML=old;}});
+}
+function downloadPhotoFiles(files,base){
+  if(files.length<=3){files.forEach(function(f,i){setTimeout(function(){downloadBlob(f.name,f);},i*400);});toast(files.length+" fotoğraf indirildi");return;}
+  var rd=files.map(function(f){return f.arrayBuffer().then(function(ab){return {name:f.name,data:new Uint8Array(ab)};});});
+  Promise.all(rd).then(function(list){var z=makeZip(list,"application/zip");downloadBlob(base+".zip",z);toast(files.length+" fotoğraf ZIP olarak indirildi");});
+}
+
+/* ===== Bir günün aşama durumlarını Drive'daki eski bir kayıttan geri getir =====
+   Drive, gemitakip-veri.json'un her kaydını sürüm olarak saklar (yaklaşık 30 gün). Seçilen sürümdeki o günün
+   aşama durumları bugünküyle karşılaştırılır; yalnızca durumlar geri alınır. Fotoğraf, cümle ve notlara dokunulmaz. */
+function driveDataFileId(){
+  var c=driveCfg();if(c.dataId)return Promise.resolve(c.dataId);
+  return driveFolders().then(function(c2){var q="name='gemitakip-veri.json' and '"+c2.root+"' in parents and trashed=false";
+    return driveFetch(DRIVE_API+"/files?q="+encodeURIComponent(q)+"&fields=files(id)").then(function(j){return (j.files&&j.files[0]&&j.files[0].id)||null;});});
+}
+function driveListDataRevisions(){
+  return driveDataFileId().then(function(id){if(!id)throw new Error("Drive’da veri dosyası yok");
+    return driveFetch(DRIVE_API+"/files/"+id+"/revisions?pageSize=200&fields=revisions(id,modifiedTime)").then(function(j){return {fileId:id,revs:(j.revisions||[]).slice().reverse()};});});
+}
+function stageDiffForDay(oldRep,dateISO){
+  var cur=getJSON(reportKey(dateISO),{items:[]}),out=[];
+  var byId={};((oldRep&&oldRep.items)||[]).forEach(function(it){byId[it.id]=it;});
+  (cur.items||[]).forEach(function(it){var o=byId[it.id];if(!o)return;
+    var ch=[];
+    (it.entries||[]).forEach(function(en,ei){var oe=(o.entries||[])[ei];if(!oe||(oe.name||"")!==(en.name||""))return;
+      var a=oe.status||(oe.done?"tamam":"devam"),b=en.status||(en.done?"tamam":"devam");
+      if(a!==b)ch.push({ei:ei,name:(en.name||"").trim()||("Aşama "+(ei+1)),from:b,to:a});});
+    if(ch.length||(o.status!==it.status))out.push({id:it.id,name:[it.job,it.title].filter(Boolean).join(" - "),stages:ch,from:it.status,to:o.status});
+  });
+  return out;
+}
+function applyStageRestore(oldRep,dateISO,ids){
+  var cur=getJSON(reportKey(dateISO),{items:[]}),byId={},n=0;
+  ((oldRep&&oldRep.items)||[]).forEach(function(it){byId[it.id]=it;});
+  (cur.items||[]).forEach(function(it){var o=byId[it.id];if(!o||(ids&&ids.indexOf(it.id)<0))return;
+    (it.entries||[]).forEach(function(en,ei){var oe=(o.entries||[])[ei];if(!oe||(oe.name||"")!==(en.name||""))return;
+      if((oe.status||"")!==(en.status||"")||!!oe.done!==!!en.done||(oe.doneDate||"")!==(en.doneDate||"")){en.status=oe.status;en.done=!!oe.done;en.doneDate=oe.doneDate||"";n++;}});
+    it.status=o.status;it.progress=itemProgressPct(it);
+  });
+  saveDayItems(dateISO,cur.items,cur);
+  if(App.selectedDate===dateISO)loadDay(dateISO);
+  return n;
+}
+function openDayRestore(){
+  var date=App.selectedDate&&App.view==="day"?App.selectedDate:((App.index||[]).slice(-1)[0]||todayISO());
+  var ov=document.createElement("div");ov.className="ov";ov.style.zIndex="75";
+  function close(){if(ov.parentNode)ov.parentNode.removeChild(ov);render();}
+  function shell(inner){
+    ov.innerHTML='<div class="sheet an-pop" style="max-height:88vh"><div class="sheet-h"><div class="t">'+I("clock")+' Günü eski hâline döndür</div><button class="icon-btn" style="background:#f1f5f9;color:var(--t3)" id="dr-x">'+I("x")+'</button></div><div class="sheet-b">'+inner+'</div></div>';
+    ov.querySelector("#dr-x").onclick=close;
+  }
+  var dayOpts=(App.index||[]).slice().sort().reverse().map(function(d){return '<option value="'+d+'"'+(d===date?" selected":"")+'>'+esc(fmtShort(d))+'</option>';}).join("");
+  function start(){
+    shell('<div class="tip" style="margin-top:0">Drive her eşitlemede veri dosyasının bir kopyasını saklar. Bir kaydı seçin; o kayıttaki aşama durumları şimdikiyle karşılaştırılır, sadece durumlar geri alınır. Fotoğraf, cümle ve notlar değişmez.</div>'+
+      '<div class="fld"><span>Gün</span><select class="in" id="dr-day">'+dayOpts+'</select></div>'+
+      '<div id="dr-list" style="font-size:12.5px;color:var(--t3)">Drive kayıtları getiriliyor…</div>');
+    ov.querySelector("#dr-day").onchange=function(){date=this.value;};
+    if(!driveEnabled()||!driveTokenOk()){ov.querySelector("#dr-list").innerHTML='Önce Drive’a bağlanın (Yedekleme penceresinden).';return;}
+    driveListDataRevisions().then(function(r){
+      if(!r.revs.length){ov.querySelector("#dr-list").textContent="Drive’da eski kayıt yok.";return;}
+      var h='<div style="font-weight:700;color:var(--t2);margin:4px 0 6px">Drive kayıtları, en yeni üstte</div>';
+      r.revs.slice(0,60).forEach(function(v,i){var t=new Date(v.modifiedTime);
+        h+='<button class="btn btn-out dr-rev" data-rev="'+esc(v.id)+'" style="width:100%;justify-content:space-between;margin-bottom:6px;padding:9px 12px;font-size:12.5px"><span>'+t.toLocaleDateString("tr-TR",{day:"numeric",month:"long"})+' · '+t.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})+'</span><span style="color:var(--t4)">'+(i===0?"en son":"")+'</span></button>';});
+      var L=ov.querySelector("#dr-list");L.innerHTML=h;
+      Array.prototype.forEach.call(L.querySelectorAll(".dr-rev"),function(b){b.onclick=function(){pick(r.fileId,b.getAttribute("data-rev"),b.textContent);};});
+    }).catch(function(e){ov.querySelector("#dr-list").textContent="Getirilemedi: "+(e&&e.message||e);});
+  }
+  function pick(fileId,revId,label){
+    shell('<div style="font-size:12.5px;color:var(--t3)">'+esc(label)+' kaydı indiriliyor…</div>');
+    driveFetch(DRIVE_API+"/files/"+fileId+"/revisions/"+revId+"?alt=media").then(function(snap){
+      var raw=snap&&snap.keys&&snap.keys[reportKey(date)];
+      var oldRep=null;try{oldRep=typeof raw==="string"?JSON.parse(raw):raw;}catch(e){}
+      if(!oldRep){shell('<div class="tip">Bu kayıtta '+esc(fmtShort(date))+' günü yok.</div><button class="btn btn-out" id="dr-back" style="width:100%">Geri</button>');ov.querySelector("#dr-back").onclick=start;return;}
+      var diff=stageDiffForDay(oldRep,date);
+      if(!diff.length){shell('<div class="tip">'+esc(label)+' kaydıyla şimdiki '+esc(fmtShort(date))+' arasında aşama farkı yok. Daha eski bir kayıt deneyin.</div><button class="btn btn-out" id="dr-back" style="width:100%">Kayıtlara dön</button>');ov.querySelector("#dr-back").onclick=start;return;}
+      var h='<div style="font-size:12.5px;color:var(--t2);margin-bottom:8px"><b>'+esc(label)+'</b> kaydına göre '+esc(fmtShort(date))+' gününde '+diff.length+' işte fark var. Geri almak istemediklerinizin işaretini kaldırın.</div>';
+      diff.forEach(function(x){
+        h+='<label style="display:block;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px;cursor:pointer"><div style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="dr-ck" value="'+esc(x.id)+'" checked style="width:18px;height:18px"/><b style="color:var(--navy);font-size:13px">'+esc(x.name)+'</b></div>'+
+           '<div style="font-size:12px;color:var(--t3);margin:3px 0 0 26px">'+(x.from!==x.to?'İş: '+st(x.from).label+' → <b>'+st(x.to).label+'</b><br>':'')+
+           x.stages.map(function(c){return esc(c.name)+': '+st(c.from).label+' → <b>'+st(c.to).label+'</b>';}).join("<br>")+'</div></label>';});
+      h+='<button class="btn btn-navy" id="dr-apply" style="width:100%;padding:12px;margin-top:6px">Seçilenleri eski hâline döndür</button><button class="btn btn-out" id="dr-back" style="width:100%;margin-top:6px">Kayıtlara dön</button>';
+      shell(h);
+      ov.querySelector("#dr-back").onclick=start;
+      ov.querySelector("#dr-apply").onclick=function(){
+        var ids=Array.prototype.filter.call(ov.querySelectorAll(".dr-ck"),function(c){return c.checked;}).map(function(c){return c.value;});
+        if(!ids.length){toast("Hiçbiri seçilmedi");return;}
+        var n=applyStageRestore(oldRep,date,ids);
+        toast(ids.length+" işin durumu geri alındı ("+n+" aşama)");close();
+      };
+    }).catch(function(e){shell('<div class="tip" style="color:#b91c1c">İndirilemedi: '+esc(e&&e.message||e)+'</div><button class="btn btn-out" id="dr-back" style="width:100%">Geri</button>');ov.querySelector("#dr-back").onclick=start;});
+  }
+  document.body.appendChild(ov);start();
+}
 // Havuzdan silerken sor: sadece telefondan mı, Drive'dan da mı?
 function askPoolDelete(n,cb){
   var ov=document.createElement("div");ov.className="ov";ov.style.zIndex="80";
@@ -4550,6 +4699,7 @@ function mountEditor(restoreScroll){
      (d.major?'<input class="in" id="ed-majornote" placeholder="Kısa açıklama, örn: PS reduction gear pump renewed" value="'+esc(d.majorNote||"")+'" style="margin-top:6px;font-size:12.5px"/>':'')+'</div>';
   // AŞAMALAR (açıklama + fotoğraf blokları)
   h+='<div class="fld"><span>Aşamalar (durum + fotoğraflar)</span>';
+  if(e.mode==="new"&&!e.hideSuggest)h+=suggestBoxHTML(d);
   d.entries.forEach(function(en,ei){
     // geriye dönük: eski en.done -> en.status
     if(!en.status)en.status=en.done?"tamam":"devam";
@@ -4603,6 +4753,7 @@ function mountEditor(restoreScroll){
     h+='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;align-items:center">'+
        '<button class="btn btn-out p-selall" data-ei="0" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px">'+((_selN===_p0.photos.length&&_selN)?"Seçimi kaldır":"Tümünü seç")+'</button>'+
        (_selN?'<button class="btn btn-navy p-movesel" data-ei="0" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px">'+I("right")+' '+_selN+' taşı…</button>'+
+              '<button class="btn btn-out p-sharesel" data-ei="0" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px;color:#15803d;border-color:#bbf7d0">'+I("upload")+' '+_selN+' paylaş / indir</button>'+
               '<button class="btn del p-delsel" data-ei="0" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px">'+I("trash")+' '+_selN+' sil</button>'
              :'<span class="tip" style="margin:0;font-size:11px">Dokun: seç • sürükle: toplu seç • '+I("eye")+' büyüt</span>')+
        '</div>';
@@ -4684,11 +4835,20 @@ function mountEditor(restoreScroll){
     if(e.mode!=="new")return false;
     if(!draftEntriesArePristine(d))return false;
     var tpl=findTemplateForTitle(d.title,d.job);
-    if(!tpl||!applyTemplateStagesToDraft(d,tpl))return false;
+    if(!tpl||!applyTemplateStagesToDraft(d,tpl)){var ae=document.activeElement;if(suggestTemplate(d.title,d.job)&&!document.getElementById("ed-suggest")&&!(ae&&/INPUT|TEXTAREA/.test(ae.tagName)))remountEditor();return false;}
     toast(tpl.stages.length+" aşama \""+tpl.name+"\" kalıbından getirildi");
     remountEditor();
     return true;
   }
+  var _sgu=ov.querySelector("#ed-suggest-use");if(_sgu)_sgu.onclick=function(){
+    up();var x=suggestTemplate(d.title,d.job);if(!x)return;
+    var hasWork=(d.entries||[]).some(function(en){return (en.photos||[]).length;});
+    if(hasWork&&!confirm("Mevcut aşamaların yerine öneri aşamaları gelsin mi? Fotoğraflar ilk aşamada kalır."))return;
+    var ph=[];(d.entries||[]).forEach(function(en){ph=ph.concat(en.photos||[]);});
+    d.entries=x.s.map(function(nm,i){return {name:nm,desc:"",status:"planlandi",done:false,doneDate:"",photos:i===0?ph:[]};});
+    e.hideSuggest=true;remountEditor();toast(x.s.length+" aşama eklendi, istemediğinizi silebilirsiniz");
+  };
+  var _sgx=ov.querySelector("#ed-suggest-x");if(_sgx)_sgx.onclick=function(){up();e.hideSuggest=true;remountEditor();};
   if(e.mode==="new"){
     // 1) listeden seçince: hemen uygula (mevcut seçim handler'ının üstüne zincirle)
     Array.prototype.forEach.call(ov.querySelectorAll('.cbx-opt[data-cbx-opt="title"]'),function(o){
@@ -4801,6 +4961,7 @@ function mountEditor(restoreScroll){
     var n=ph.filter(function(p){return sel[p.id];}).length;
     var bh='<button class="btn btn-out p-selall" data-ei="'+ei+'" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px">'+((n===ph.length&&n)?"Seçimi kaldır":"Tümünü seç")+'</button>';
     bh+=n?('<button class="btn btn-navy p-movesel" data-ei="'+ei+'" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px">'+I("right")+' '+n+' taşı…</button>'+
+           '<button class="btn btn-out p-sharesel" data-ei="'+ei+'" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px;color:#15803d;border-color:#bbf7d0">'+I("upload")+' '+n+' paylaş / indir</button>'+
            '<button class="btn del p-delsel" data-ei="'+ei+'" style="padding:5px 10px;font-size:11.5px;height:auto;border-radius:12px">'+I("trash")+' '+n+' sil</button>')
         :'<span class="tip" style="margin:0;font-size:11px">Dokun: seç • sürükle: toplu seç • '+I("eye")+' büyüt</span>';
     bar.innerHTML=bh;
@@ -4815,6 +4976,14 @@ function mountEditor(restoreScroll){
       var allSel=ph.length&&ph.every(function(p){return cur[p.id];});
       ph.forEach(function(p){cur[p.id]=!allSel;edPaintThumb(ei,p.id);});
       edPaintBar(ei);
+    };});
+    Array.prototype.forEach.call(ov.querySelectorAll(".p-sharesel"),function(b){b.onclick=function(ev){
+      ev.stopPropagation();up();
+      var ei=Number(b.getAttribute("data-ei"));
+      var sel=App._photoSel[ei]||{};
+      var ids=((d.entries[ei]||{}).photos||[]).filter(function(p){return sel[p.id];}).map(function(p){return p.id;});
+      if(!ids.length)return;
+      sharePhotos(ids,[d.job,d.title].filter(Boolean).join(" - ")||"Fotograflar",App.selectedDate,b);
     };});
     Array.prototype.forEach.call(ov.querySelectorAll(".p-movesel"),function(b){b.onclick=function(ev){
       ev.stopPropagation();up();
@@ -6304,7 +6473,8 @@ function mountLightbox(){
     delBtn='<button id="lb-del" style="position:absolute;left:14px;bottom:92px;display:flex;align-items:center;gap:7px;padding:13px 18px;border-radius:999px;border:2px solid rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.4);background:rgba(185,28,28,.9);color:#fff;font-size:14px;font-weight:800;z-index:6">'+I("trash")+' Sil</button>';
   }
   var goBtn='<button id="lb-go" style="position:absolute;left:50%;transform:translateX(-50%);bottom:'+(many?'64px':'22px')+';display:'+((lst&&lst[li]&&lst[li].go)?'flex':'none')+';align-items:center;gap:6px;padding:10px 18px;border-radius:999px;border:2px solid #fff;background:var(--orange);color:#fff;font-size:13.5px;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.4);z-index:3">İşe git ›</button>';
-  ov.innerHTML=goBtn+'<img src="'+App.lightbox+'" id="lb-img" style="touch-action:none;transition:transform .05s;will-change:transform"/><button class="x" id="lb-x">'+I("x")+'</button>'+
+  var shBtn=(lst&&lst[li]&&lst[li].pid)||App.lbPid?'<button id="lb-share" title="Paylaş / indir" style="position:absolute;top:16px;right:70px;height:44px;padding:0 14px;border-radius:999px;background:rgba(255,255,255,.15);color:#fff;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;z-index:3">'+I("upload")+' Paylaş</button>':'';
+  ov.innerHTML=goBtn+shBtn+'<img src="'+App.lightbox+'" id="lb-img" style="touch-action:none;transition:transform .05s;will-change:transform"/><button class="x" id="lb-x">'+I("x")+'</button>'+
     '<div id="lb-full" style="display:none;position:absolute;top:18px;left:50%;transform:translateX(-50%);color:#fff;font-size:12px;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:999px;pointer-events:none">Tam boy yükleniyor…</div>'+selBtn+delBtn+rotBtn+navHtml+
     (many?"":'<div id="lb-hint" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.7);font-size:12px;background:rgba(0,0,0,.3);padding:6px 14px;border-radius:999px;pointer-events:none">Çift dokun veya parmaklarınla yakınlaştır</div>');
   document.body.appendChild(ov);
@@ -6385,6 +6555,8 @@ function mountLightbox(){
   }
   function goCur(){var g=lst&&lst[li]&&lst[li].go;if(!g)return false;if(ov._cleanup)ov._cleanup();goToItem(g.date,g.itemId);return true;}
   var lbGo=ov.querySelector("#lb-go");if(lbGo)lbGo.onclick=function(e){e.stopPropagation();goCur();};
+  var lbSh=ov.querySelector("#lb-share");if(lbSh)lbSh.onclick=function(e){e.stopPropagation();var pid=(lst&&lst[li]&&lst[li].pid)||App.lbPid;if(!pid)return;
+    var cap=(lst&&lst[li]&&lst[li].cap)||"Fotograf";sharePhotos([pid],String(cap).split("\n")[0].split(" • ")[0],"",lbSh);};
   // Gösterilen fotoğrafın tam boyunu getir (ızgaralar küçük resim kullanır)
   function upgradeFull(n){
     var pid=(lst&&lst[n]&&lst[n].pid)||App.lbPid;if(!pid)return;
@@ -6845,6 +7017,7 @@ function mountSettings(){
     h+=secHead('veri','Veri ve Bakım','yedek · makro');
     if(secOpen('veri')){
     h+='<div class="fld"><span>Word Makrosu (bilgisayar için)</span><button class="btn btn-out" id="se-macro" style="width:100%">'+I("file")+' Fotoğraf Kopyalama Makrosu</button><div class="tip">Word raporunda bir fotoğrafa tıklayıp makroyu çalıştırınca o işin <b>tüm fotoğrafları</b> seçilip kopyalanır. Kurulum adımları açılan pencerede.</div></div>';
+    h+='<div class="fld"><span>Geri alma</span><button class="btn btn-out" id="se-dayrestore" style="width:100%">'+I("clock")+' Bir günün aşamalarını eski hâline döndür</button><div class="tip">Yanlışlıkla değişen aşama durumlarını Drive’daki eski bir kayıttan geri getirir. Fotoğraf ve yazılar değişmez.</div></div>';
     h+='<div class="fld"><span>Yedekleme</span><button class="btn btn-out" id="se-backup" style="width:100%">'+I("save")+' Yedekle / Geri Yükle</button><div class="tip">Fotoğraflar Drive’a kendiliğinden yazılır. Buradan veri yedeği alabilir, Word raporlarından gün geri kurabilirsiniz.</div></div>';
     }
     h+=secHead('gemi','Gemi Yönetimi','arşiv · gemi değiştir');
@@ -6977,6 +7150,7 @@ function mountSettings(){
       }).catch(function(){idxb.disabled=false;build();toast("Analiz tamamlanamadı");});
     };
     var alb=ov.querySelector("#se-autoland");if(alb)alb.onclick=function(){setAutoLand(!getAutoLand());build();};
+    var drb=ov.querySelector("#se-dayrestore");if(drb)drb.onclick=function(){openDayRestore();};
     var gms=ov.querySelector("#se-gmsave");if(gms)gms.onclick=function(){var c=geminiCfg();c.key=(ov.querySelector("#se-gmkey").value||"").trim();geminiSaveCfg(c);toast(c.key?"Gemini anahtarı kaydedildi":"Anahtar silindi");};
     var gmt=ov.querySelector("#se-gmtest");if(gmt)gmt.onclick=function(){
       var c=geminiCfg();var k=(ov.querySelector("#se-gmkey").value||"").trim();if(k&&k!==c.key){c.key=k;geminiSaveCfg(c);}
@@ -8733,30 +8907,47 @@ function bindSetup(){
    Türkçe not -> İngilizce rapor cümlesi. Anahtar yalnızca bu cihazda saklanır (yedeğe ve Drive'a girmez).
    İnternet yoksa düğmeler çalışmaz; uygulamanın geri kalanı etkilenmez. */
 var GEMINI_KEY="gt_gemini_ayar";            // bilerek tersane_/gemitakip_ ön eki YOK: yedeklenmez
-var GEMINI_DEFAULT_MODEL="gemini-flash-latest", GEMINI_FALLBACK_MODEL="gemini-2.5-flash";
+var GEMINI_DEFAULT_MODEL="gemini-flash-latest";
 function geminiCfg(){try{var c=JSON.parse(localStorage.getItem(GEMINI_KEY)||"{}");return (c&&typeof c==="object")?c:{};}catch(e){return {};}}
 function geminiSaveCfg(c){try{localStorage.setItem(GEMINI_KEY,JSON.stringify(c||{}));}catch(e){}}
 function geminiReady(){return !!(geminiCfg().key);}
-function geminiCall(prompt,model){
+function geminiCall(prompt){
   var c=geminiCfg();if(!c.key)return Promise.reject(new Error("Gemini anahtarı yok"));
   if(typeof navigator.onLine==="boolean"&&!navigator.onLine)return Promise.reject(new Error("İnternet bağlantısı yok"));
-  var m=model||c.model||GEMINI_DEFAULT_MODEL;
-  return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(m)+":generateContent",{
-    method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
-    body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:1024}})
-  }).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};},function(){return {ok:r.ok,status:r.status,j:{}};});}).then(function(x){
-    if(!x.ok){
-      if(x.status===404&&m!==GEMINI_FALLBACK_MODEL&&!model)return geminiCall(prompt,GEMINI_FALLBACK_MODEL).then(function(t){var c2=geminiCfg();c2.model=GEMINI_FALLBACK_MODEL;geminiSaveCfg(c2);return t;});
-      var msg=(x.j&&x.j.error&&x.j.error.message)||("HTTP "+x.status);
-      if(x.status===400&&/API key/i.test(msg))msg="Anahtar geçersiz";
-      if(x.status===429)msg="Günlük ücretsiz kullanım sınırı doldu, biraz sonra tekrar deneyin";
-      throw new Error(msg);
+  // Model yoğunsa ya da bulunamazsa sıradakine geç; hepsi yoğunsa kısa bir beklemeden sonra bir tur daha dene
+  var chain=[c.model||GEMINI_DEFAULT_MODEL,GEMINI_DEFAULT_MODEL,"gemini-2.5-flash","gemini-2.5-flash-lite"].filter(function(x,i,a){return x&&a.indexOf(x)===i;});
+  var lastErr=null;
+  function one(m){
+    return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(m)+":generateContent",{
+      method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
+      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:1024}})
+    }).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};},function(){return {ok:r.ok,status:r.status,j:{}};});});
+  }
+  function attempt(i,round){
+    if(i>=chain.length){
+      if(round===0&&lastErr&&lastErr.retry)return new Promise(function(r){setTimeout(r,2500);}).then(function(){return attempt(0,1);});
+      return Promise.reject(lastErr||new Error("Çevrilemedi"));
     }
-    var parts=(((x.j.candidates||[])[0]||{}).content||{}).parts||[];
-    var t=parts.filter(function(p){return p.text&&!p.thought;}).map(function(p){return p.text;}).join("").trim();
-    if(!t)throw new Error("Boş yanıt");
-    return t.replace(/^["“]+|["”]+$/g,"").replace(/^\s*(English|Translation)\s*:\s*/i,"").trim();
-  });
+    var m=chain[i];
+    return one(m).then(function(x){
+      if(!x.ok){
+        var raw=(x.j&&x.j.error&&x.j.error.message)||("HTTP "+x.status);
+        if(x.status===400&&/API key/i.test(raw))throw new Error("Anahtar geçersiz");
+        if(x.status===403)throw new Error("Anahtarın bu hizmete izni yok");
+        var busy=x.status===503||x.status===500||x.status===429||/high demand|overloaded|unavailable/i.test(raw);
+        lastErr=new Error(busy?(x.status===429?"Ücretsiz kullanım sınırı doldu, biraz sonra tekrar deneyin":"Gemini şu an çok yoğun, birkaç dakika sonra tekrar deneyin"):raw);
+        lastErr.retry=busy;
+        if(busy||x.status===404)return attempt(i+1,round);
+        throw lastErr;
+      }
+      var parts=(((x.j.candidates||[])[0]||{}).content||{}).parts||[];
+      var t=parts.filter(function(p){return p.text&&!p.thought;}).map(function(p){return p.text;}).join("").trim();
+      if(!t){lastErr=new Error("Boş yanıt");lastErr.retry=true;return attempt(i+1,round);}
+      if(m!==c.model){var c2=geminiCfg();c2.model=m;geminiSaveCfg(c2);}   // çalışan modeli hatırla
+      return t.replace(/^["“]+|["”]+$/g,"").replace(/^\s*(English|Translation)\s*:\s*/i,"").trim();
+    },function(e){if(e&&/Anahtar/.test(e.message))throw e;lastErr=new Error("Bağlantı kurulamadı");lastErr.retry=true;return attempt(i+1,round);});
+  }
+  return attempt(0,0);
 }
 // İşin bağlamıyla birlikte rapor dilinde cümle iste
 function geminiReportPrompt(d,tr,kind,dateISO){
