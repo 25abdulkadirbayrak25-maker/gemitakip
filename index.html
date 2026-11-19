@@ -325,7 +325,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-19h";
+var APP_BUILD="2026-11-19i";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7228,10 +7228,12 @@ function repairDaysFromReports(srcList,onProgress){
   return Promise.all([idbListIds(),driveGetMap()]).then(function(r){
     r[0].forEach(function(id){have[id]=1;});map=r[1]||{};
     var need={};
-    (App.index||[]).forEach(function(d){var rep=getJSON(reportKey(d),null);if(!rep)return;var n=0;
-      (rep.items||[]).forEach(function(it){(it.entries||[]).forEach(function(en){(en.photos||[]).forEach(function(p){if(!ok(pidOf(p)))n++;});});});
+    (App.index||[]).forEach(function(d){var rep=getJSON(reportKey(d),null);if(!rep)return;var n=0,tot=0;
+      (rep.items||[]).forEach(function(it){(it.entries||[]).forEach(function(en){(en.photos||[]).forEach(function(p){tot++;if(!ok(pidOf(p)))n++;});});});
+      var poolN=(rep.pool||[]).length;
       (rep.pool||[]).forEach(function(p){if(!ok(pidOf(p)))n++;});
-      if(n)need[d]=n;});
+      // işlerinde hiç fotoğraf olmayan gün de (ör. yedekten sonraki gün ya da İngilizce rapordan kurulan gün) rapordan doldurulur
+      if(n||(!tot&&(rep.items||[]).length))need[d]=n||1;});
     res.needDays=Object.keys(need).length;
     var srcs=Array.prototype.slice.call(srcList||[]).map(function(f){return f.load?f:{name:f.name,load:function(){return readFileAsRetry(f,"buffer");}};});
     srcs.forEach(function(s,i){s.date=srcDateFromName(s.name);s.kind=srcKind(s.name);s.i=i;});
@@ -7242,7 +7244,15 @@ function repairDaysFromReports(srcList,onProgress){
       if(sx.kind===1&&fixedApp[sx.date])return;
       onProgress&&onProgress("Tamamlanıyor "+(k+1)+"/"+srcs.length+" · "+sx.name+" · "+res.photos+" fotoğraf");
       var rep=null,changed=0,touched=[];
-      function claim(en){if(en._rp)return true;if(!allMissing(en))return false;en._rp=1;en.photos=[];touched.push(en);return true;}
+      // Aşamanın fotoğraflarının çoğu kayıpsa rapordakilerle değiştir (kalan birkaçı raporda zaten var, kopya olmasın);
+      // yalnızca birkaçı kayıpsa onları listeden çıkar, gri kare kalmasın
+      function claim(en){
+        if(en._rp)return true;
+        var ps=(en.photos||[]).map(pidOf),miss=ps.filter(function(id){return !ok(id);});
+        if(ps.length&&!miss.length)return false;
+        if(ps.length&&miss.length<=ps.length/2){en.photos=(en.photos||[]).filter(function(p){return ok(pidOf(p));});changed++;return false;}
+        en._rp=1;en.photos=[];touched.push(en);return true;
+      }
       return sx.load().then(function(buf){
         var bytes=new Uint8Array(buf);rep=getJSON(reportKey(sx.date),{items:[]});
         var byName={};(rep.items||[]).forEach(function(it){var kk=itemKeyName(it);if(kk&&!byName[kk])byName[kk]=it;});
@@ -7260,6 +7270,17 @@ function repairDaysFromReports(srcList,onProgress){
           });
         }
         return parseAppReportDocx(bytes).then(function(r){
+          var itemPhotos=0;(rep.items||[]).forEach(function(it){(it.entries||[]).forEach(function(en){itemPhotos+=(en.photos||[]).length;});});
+          if(r.kind==="app"&&!itemPhotos&&(rep.pool||[]).length){
+            // İngilizce rapordan kurulmuş gün: uygulama raporundan baştan kur, havuzdaki fotoğrafları koru
+            fixedApp[sx.date]=1;
+            var prev=(App.index||[]).filter(function(x){return x<sx.date;}).sort();
+            var base=prev.length?(getJSON(reportKey(prev[prev.length-1]),{items:[]}).items||[]):[];
+            var bd=buildDayFromReport(r,base,sx.date);rep.items=bd.items;delete rep.src;changed++;
+            bd.photoJobs.forEach(function(pj){c2=c2.then(function(){var data=r.files[pj.path];if(!data)return;
+              return bytesToDataUrl(data,pj.path).then(function(u){if(!u)return;return storePhotoEverywhere(pj.id,u).then(function(x){if(x.local||x.drive){res.photos++;have[pj.id]=1;}});});});});
+            return c2;
+          }
           if(r.kind==="app"){
             fixedApp[sx.date]=1;
             r.jobs.forEach(function(j){var it=byName[j.name.toLocaleLowerCase("tr")];if(!it)return;
