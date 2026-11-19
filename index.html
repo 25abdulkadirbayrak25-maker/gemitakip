@@ -325,7 +325,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-19f";
+var APP_BUILD="2026-11-19h";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -451,7 +451,7 @@ function computeFp(dataUrl){
 function getFp(id){
   var m=loadFpAll();
   if(m[id]&&m[id].length===FP_LEN)return Promise.resolve(m[id]);
-  var url=photoData(id);if(!url)return Promise.resolve(null);
+  var url=thumbMem[id]||photoMem[id]||thumbData(id);if(!url)return Promise.resolve(null);
   return computeFp(url).then(function(fp){if(fp)return saveFpOne(id,fp).then(function(){return fp;});return null;});
 }
 // z-normalizasyon istatistiği (eğitim setinden)
@@ -626,7 +626,7 @@ function indexAllPhotos(onProgress){
   (function(){
     var need=jobs.map(function(j){return j.id;}).filter(function(id){return !have[id];});
     for(var i=0;i<need.length;i+=40){
-      (function(batch){chain=chain.then(function(){return ensurePhotos(batch);});})(need.slice(i,i+40));
+      (function(batch){chain=chain.then(function(){return ensureThumbs(batch);});})(need.slice(i,i+40));
     }
   })();
   jobs.forEach(function(j){
@@ -1271,14 +1271,14 @@ function idbLoadFps(){
 }
 // Fotoğraf yaz: IndexedDB + bellek; başarı bool döner
 function savePhoto(id,data){
-  photoMem[id]=data;
+  photoMem[id]=data;delete thumbMem[id];try{ensureThumbFromFull(id,data);}catch(e){}
   return idbPut(id,data);
 }
 function loadFpsIntoMemory(){
   if(FP_LOADED)return Promise.resolve();
   return idbLoadFps().then(function(m){fpMem=m||{};FP_LOADED=true;});
 }
-function deletePhoto(id){delete photoMem[id];return idbDel(id);}
+function deletePhoto(id){delete photoMem[id];delete thumbMem[id];idbDel("t:"+id);return idbDel(id);}
 function sGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function sSet(k,v){try{localStorage.setItem(k,v);if(typeof k==="string"&&k.indexOf("tersane_")===0&&typeof DRV!=="undefined")DRV.dirty=true;return true;}catch(e){return false;}}
 function sDel(k){if(typeof k==="string"&&k.indexOf("tersane_rapor_")===0)invalidateChainCache();try{localStorage.removeItem(k);}catch(e){}}
@@ -2699,7 +2699,8 @@ function loadDay(d){var rep=getJSON(reportKey(d),{items:[]});var arr=Array.isArr
     var need=[];
     arr.forEach(function(it){(it.entries||[]).forEach(function(en){(en.photos||[]).forEach(function(p){need.push(p);});});});
     (rep.pool||[]).forEach(function(p){need.push(p);});
-    if(need.length){trimPhotoMem(need);ensurePhotos(need.slice(0,600)).then(function(){render();});}
+    // kartlar için küçük resimler yeter; tam boy ancak iş açılınca ya da raporda iner
+    if(need.length){var _ids=need.map(function(p){return (p&&p.id)?p.id:p;});trimPhotoMem(_ids);trimThumbMem(_ids);ensureThumbs(_ids.slice(0,600)).then(function(){render();});}
   }catch(e){}arr.forEach(normalizeItem);App.items=arr;}
 // Durum gruplarina gore sirala: Devam → Tamam → Planlandi → Bekleme; grup icinde İş(job) + başlık benzerligi
 var STATUS_SORT={tamam:0,devam:1,started:2,bekleme:3,planlandi:4,soon:5};
@@ -2997,7 +2998,7 @@ function itemsListHTML(){
     if(collapsed)return;
     dispIdx++;var pc=itemPhotoCount(it);
     var thumbIds=itemPhotoIds(it);var thumbHtml="";
-    if(App.showThumbs&&thumbIds.length){var show=thumbIds.slice(0,5);thumbHtml='<div class="thumbs">';show.forEach(function(pid){var dt=photoData(pid);if(dt)thumbHtml+='<img src="'+dt+'"/>';});if(thumbIds.length>5)thumbHtml+='<span class="more">+'+(thumbIds.length-5)+'</span>';thumbHtml+='</div>';}
+    if(App.showThumbs&&thumbIds.length){var show=thumbIds.slice(0,5);thumbHtml='<div class="thumbs">';show.forEach(function(pid){var dt=thumbData(pid);if(dt)thumbHtml+='<img src="'+dt+'"/>';});if(thumbIds.length>5)thumbHtml+='<span class="more">+'+(thumbIds.length-5)+'</span>';thumbHtml+='</div>';}
     var sel=!!App.selected[it.id];
     var fullTitle=[it.job,it.title].filter(function(x){return x&&x.trim();}).map(esc).join(" - ")||esc(it.title);
     var metaInner='<div class="meta"><span class="chip" style="color:'+s.tx+';background:'+s.bg+';border-color:'+s.ring+'">'+statusIcon(it.status)+' '+s.label+'</span>'+(itemPg(it)>0?'<span class="pchip">%'+itemPg(it)+'</span>':"")+(it.bolum?'<span class="mtag">'+I("tag")+' '+esc(it.bolum)+'</span>':"")+((it.entries||[]).length>1?'<span class="mtag">'+I("layers")+' '+it.entries.length+' aşama</span>':"")+(pc?'<span class="mtag">'+I("img")+' '+pc+' foto</span>':"")+'</div>';
@@ -4997,7 +4998,7 @@ function mountPool(){
         h+='</div>';
       }
       cl.ids.forEach(function(pid){
-        var url=photoData(pid);   // yoksa arka planda yüklenir, kare yine çizilir
+        var url=thumbData(pid);   // yoksa arka planda yüklenir, kare yine çizilir
         var isSel=!!(st_.sel||{})[pid];
         h+='<div class="pthumb'+(isSel?" psel":"")+'" data-plcell="'+esc(pid)+'" data-i="'+(idxOf[pid]||0)+'">'+
            (url?'<img loading="lazy" decoding="async" src="'+url+'" draggable="false"/>'
@@ -5337,7 +5338,7 @@ function mountPoolPick(){
   }else{
     h+='<div class="pgrid poolgrid" id="pp-grid" style="grid-template-columns:repeat(3,1fr)">';
     ids.forEach(function(pid){
-      var url=photoData(pid);
+      var url=thumbData(pid);
       var isSel=!!pp.sel[pid];
       h+='<div class="pthumb'+(isSel?" psel":"")+'" data-plcell="'+esc(pid)+'">'+
          (url?'<img loading="lazy" decoding="async" src="'+url+'" draggable="false"/>'
@@ -5727,7 +5728,7 @@ function collectPhotoMatches(q){
       }
       (it.entries||[]).forEach(function(en){
         (en.photos||[]).forEach(function(pid){
-          out.push({url:photoData(pid)||"",pid:pid,date:dateISO,itemId:it.id,
+          out.push({url:thumbData(pid)||"",pid:pid,date:dateISO,itemId:it.id,
             title:[itemJobs(it)[0]||"",it.title||""].filter(Boolean).join(" - "),
             bolum:itemBolumsText(it)||"",
             stage:(en.name||"").trim(),
@@ -6600,9 +6601,10 @@ function idbListIds(){
     if(!IDB){resolve([]);return;}
     try{
       var store=IDB.transaction("fotolar","readonly").objectStore("fotolar");
-      if(store.getAllKeys){var rq=store.getAllKeys();rq.onsuccess=function(){resolve((rq.result||[]).map(String));};rq.onerror=function(){resolve([]);};return;}
+      var notTh=function(k){return k.indexOf("t:")!==0;};
+      if(store.getAllKeys){var rq=store.getAllKeys();rq.onsuccess=function(){resolve((rq.result||[]).map(String).filter(notTh));};rq.onerror=function(){resolve([]);};return;}
       var out=[],cur=store.openCursor();
-      cur.onsuccess=function(ev){var c=ev.target.result;if(c){out.push(String(c.key));c.continue();}else resolve(out);};
+      cur.onsuccess=function(ev){var c=ev.target.result;if(c){var k=String(c.key);if(notTh(k))out.push(k);c.continue();}else resolve(out);};
       cur.onerror=function(){resolve(out);};
     }catch(e){resolve([]);}
   });});
@@ -6770,11 +6772,13 @@ function driveUploadData(c){
   var snap=buildDataSnapshot();
   if(!snapshotHasShip(snap))return Promise.resolve(null);      // boş telefon Drive'daki dolu kaydın üzerine yazmasın
   var blob=new Blob([JSON.stringify(snap)],{type:"application/json"});
+  // oturumda bir kez: kayıtlı dosya çöpe atılmış ya da silinmişse yenisini aç (çöpteki dosyaya yazmaya devam etmesin)
+  var check=DRV.dataChecked||!c.dataId?Promise.resolve():driveFetch(DRIVE_API+"/files/"+c.dataId+"?fields=id,trashed").then(function(m){if(m.trashed){c.dataId=null;driveSaveCfg(c);}},function(){c.dataId=null;driveSaveCfg(c);});
   var go=function(){
     if(c.dataId)return driveMultipart({},blob,"PATCH",c.dataId);
     return driveMultipart({name:"gemitakip-veri.json",parents:[c.root]},blob).then(function(f){c.dataId=f.id;driveSaveCfg(c);return f;});
   };
-  return go().catch(function(e){if(/404/.test(String(e.message))){c.dataId=null;driveSaveCfg(c);return go();}throw e;});
+  return check.then(function(){DRV.dataChecked=true;return go();}).catch(function(e){if(/404/.test(String(e&&e.message))){c.dataId=null;driveSaveCfg(c);return go();}throw e;});
 }
 function driveUploadPhotos(c,limit){
   var up=driveUploaded();
@@ -6847,6 +6851,8 @@ function driveSync(manual){
   return driveFolders().then(function(c0){c=c0;
     if(DRV.dirty||manual||!c.dataSyncedAt){DRV.dirty=false;return driveUploadData(c).then(function(r){if(r){c.dataSyncedAt=Date.now();driveSaveCfg(c);setLastBackup();}});}
   }).then(function(){return driveUploadPhotos(c,manual?60:25);}).then(function(r){
+    return driveBuildPacks(manual?10:3).then(function(){return driveSyncFps();}).then(function(){return r;});
+  }).then(function(r){
     DRV.lastSync=Date.now();DRV.busy=false;driveStatusRender();
     if(r.left>0)setTimeout(function(){driveSync();},1500);           // kuyruk bitene kadar devam
     return r;
@@ -6922,6 +6928,8 @@ function openDriveFilesPanel(){
         h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin:16px 0 6px">RAPORLAR · '+esc((App.project||{}).shipName||"")+' için eksik günler</div>';
         h+='<div style="font-size:12.5px;color:var(--t2);margin-bottom:8px">'+reports.length+' rapor ve fotoğraf ZIP’i bulundu. Var olan günlerin dosyaları indirilmez.</div>';
         h+='<button class="btn btn-navy" id="dfp-reports" style="width:100%;padding:11px"'+(st.busy||!reports.length?" disabled":"")+'>Eksik günleri raporlardan ekle</button>';
+        h+='<button class="btn btn-out" id="dfp-repair" style="width:100%;padding:11px;margin-top:6px"'+(st.busy||!reports.length?" disabled":"")+'>Kayıp fotoğrafları raporlardan tamamla</button>';
+        h+='<div class="tip" style="margin-top:4px">Gri kalan, ne telefonda ne Drive’da olan fotoğrafları o günün raporundan geri koyar. Fotoğrafı yerinde olan aşamalara dokunmaz.</div>';
       }
       st._reports=reports;st._backups=backups;
     }
@@ -6950,6 +6958,15 @@ function openDriveFilesPanel(){
         draw();
       }).catch(function(e){st.busy="";st.err="Aktarılamadı: "+(e&&e.message||e);draw();});
     };});
+    var rpb=ov.querySelector("#dfp-repair");if(rpb)rpb.onclick=function(){
+      var srcs=(st._reports||[]).map(function(f){return {name:f.name,load:function(){return driveDownloadBuffer(f.id);}};});
+      st.busy="Eksik fotoğraflar aranıyor…";st.err="";st.result="";draw();
+      repairDaysFromReports(srcs,function(msg){st.busy=msg;var p=document.getElementById("dfp-prog");if(p)p.textContent=msg;}).then(function(r){
+        st.busy="";
+        st.result=(r.needDays?(r.needDays+" günde eksik fotoğraf vardı. "):"Eksik fotoğraf yok. ")+(r.days.length?("Tamamlanan günler: "+esc(r.days.map(fmtShort).join(", "))+" · "+r.photos+" fotoğraf. "):"")+(r.errors.length?'<span style="color:#b91c1c">'+esc(r.errors.slice(0,5).join(" · "))+'</span>':"");
+        draw();
+      }).catch(function(e){st.busy="";st.err=String(e&&e.message||e);draw();});
+    };
     var rb=ov.querySelector("#dfp-reports");if(rb)rb.onclick=function(){
       var srcs=(st._reports||[]).map(function(f){return {name:f.name,load:function(){return driveDownloadBuffer(f.id);}};});
       st.busy="Başlıyor…";st.err="";st.result="";draw();
@@ -7013,7 +7030,7 @@ function driveFetchPhotos(ids){
       return driveLimited(function(){
         return driveFetch(DRIVE_API+"/files/"+fid+"?alt=media",{},true).then(function(r){return r.blob();}).then(blobToDataUrl).then(function(u){
           if(!u)return;if(!/^data:image\//.test(u))u=u.replace(/^data:[^;]*;/,"data:image/jpeg;");
-          photoMem[id]=u;touchPhoto(id);n++;DRV_STATS.down++;
+          photoMem[id]=u;touchPhoto(id);n++;DRV_STATS.down++;ensureThumbFromFull(id,u);
           return idbPut(id,u);
         });
       }).catch(function(e){DRV_STATS.lastErr=String(e&&e.message||e);});
@@ -7032,6 +7049,250 @@ function storageInfoLine(){
   if(IDB_FAILS.n)s+=" · yazılamayan: "+IDB_FAILS.n+" ("+IDB_FAILS.last+")";
   if(driveEnabled())s+=" · Drive’da "+driveUpCount()+" fotoğraf";
   return s;
+}
+/* ===================== Küçük resimler (hız) =====================
+   Kartlar ve ızgaralar tam boy fotoğraf yerine ~20 KB'lık küçük resim gösterir. Küçük resimler telefonda
+   "t:<id>" anahtarıyla saklanır ve Drive'da her gün için TEK bir paket dosyasında durur: bir günün tüm küçük
+   resimleri tek istekte iner. Tam boy fotoğraf yalnızca açıldığında, rapor ya da dışa aktarma için iner. */
+var thumbMem={},_thQ={},_thTimer=null,_thMiss={},TH_PREFIX="t:";
+// Bellekte en fazla ~1500 küçük resim (telefon belleği): fazlası en eskiden atılır, gerekince depodan geri gelir
+function trimThumbMem(keep){
+  var ks=Object.keys(thumbMem);if(ks.length<=1500)return;
+  var k={};(keep||[]).forEach(function(id){k[id]=1;});
+  for(var i=0;i<ks.length&&Object.keys(thumbMem).length>1200;i++){if(!k[ks[i]])delete thumbMem[ks[i]];}
+}
+function makeThumb(dataUrl){
+  return new Promise(function(resolve){
+    try{var img=new Image();
+      img.onload=function(){try{var M=320,w=img.naturalWidth||img.width,h=img.naturalHeight||img.height,s=Math.min(1,M/Math.max(w,h));
+        var cv=document.createElement("canvas");cv.width=Math.max(1,Math.round(w*s));cv.height=Math.max(1,Math.round(h*s));
+        cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);resolve(cv.toDataURL("image/jpeg",0.72));}catch(e){resolve(null);}};
+      img.onerror=function(){resolve(null);};img.src=dataUrl;}catch(e){resolve(null);}
+  });
+}
+function idbGetThumb(id){return idbGetOne(TH_PREFIX+id);}
+function idbPutThumb(id,u){return idbPut(TH_PREFIX+id,u);}
+// Tam boy eldeyse küçüğünü üret ve sakla
+function ensureThumbFromFull(id,full){
+  if(thumbMem[id])return Promise.resolve(thumbMem[id]);
+  return makeThumb(full).then(function(t){if(!t)return null;thumbMem[id]=t;idbPutThumb(id,t);return t;});
+}
+function thumbData(id){
+  if(thumbMem[id])return thumbMem[id];
+  if(photoMem[id]){ensureThumbFromFull(id,photoMem[id]);return photoMem[id];}
+  lazyLoadThumb(id);return null;
+}
+function lazyLoadThumb(id){
+  if(!id||thumbMem[id]||_thQ[id]||(_thMiss[id]||0)>=2)return;
+  _thQ[id]=1;if(_thTimer)return;
+  _thTimer=setTimeout(function(){var ids=Object.keys(_thQ);_thQ={};_thTimer=null;
+    ensureThumbs(ids).then(function(){
+      var got=false;ids.forEach(function(x){if(thumbMem[x]||photoMem[x])got=true;else _thMiss[x]=(_thMiss[x]||0)+1;});
+      if(got)render();
+    });
+  },60);
+}
+// Fotoğraf -> gün eşlemesi (paket hangi güne ait?)
+var _photoDayIdx=null,_photoDayStamp="";
+function photoDayIndex(){
+  var stamp=(App.index||[]).length+"|"+((App.project||{}).shipName||"");
+  if(_photoDayIdx&&_photoDayStamp===stamp)return _photoDayIdx;
+  var m={};(App.index||[]).forEach(function(d){var rep=getJSON(reportKey(d),null);if(!rep)return;
+    (rep.items||[]).forEach(function(it){(it.entries||[]).forEach(function(en){(en.photos||[]).forEach(function(p){var id=(p&&p.id)?p.id:p;if(id)m[id]=d;});});});
+    (rep.pool||[]).forEach(function(p){var id=(p&&p.id)?p.id:p;if(id)m[id]=d;});});
+  _photoDayIdx=m;_photoDayStamp=stamp;return m;
+}
+function shipSlug(){return fileSafeJob((App.project||{}).shipName||"gemi").toLowerCase();}
+function packName(date){return "kucuk_"+shipSlug()+"_"+date+".json";}
+function ensureThumbs(ids){
+  ids=(ids||[]).filter(function(id){return id&&!thumbMem[id];});
+  if(!ids.length)return Promise.resolve();
+  var ch=idbReady();
+  ids.forEach(function(id){ch=ch.then(function(){return idbGetThumb(id).then(function(v){if(v)thumbMem[id]=v;});});});
+  return ch.then(function(){
+    var miss=ids.filter(function(id){return !thumbMem[id];});
+    if(!miss.length)return;
+    // telefonda tam boyu varsa ondan üret
+    var c2=Promise.resolve();
+    miss.forEach(function(id){c2=c2.then(function(){var f=photoMem[id];if(f)return ensureThumbFromFull(id,f);
+      return idbGetOne(id).then(function(v){if(v)return ensureThumbFromFull(id,v);});});});
+    return c2.then(function(){
+      var miss2=ids.filter(function(id){return !thumbMem[id];});
+      if(!miss2.length||!driveEnabled()||!driveTokenOk())return;
+      // Drive: önce günün paketi, pakette olmayanlar için tam boy
+      var byDay={},idx=photoDayIndex();miss2.forEach(function(id){var d=idx[id]||"?";(byDay[d]=byDay[d]||[]).push(id);});
+      var c3=Promise.resolve();
+      Object.keys(byDay).forEach(function(d){c3=c3.then(function(){return d==="?"?null:drivePullPack(d);});});
+      return c3.then(function(){
+        var miss3=ids.filter(function(id){return !thumbMem[id];});
+        if(miss3.length)return driveFetchPhotos(miss3.slice(0,40)).then(function(){
+          var c4=Promise.resolve();miss3.forEach(function(id){c4=c4.then(function(){if(photoMem[id])return ensureThumbFromFull(id,photoMem[id]);});});return c4;
+        });
+      });
+    });
+  });
+}
+var DRV_PACKS=null,DRV_PACK_PULLED={};
+function driveKucukFolder(){
+  var c=driveCfg();if(c.kucuk)return Promise.resolve(c.kucuk);
+  return driveFolders().then(function(c0){return driveFindOrCreateFolder("kucuk",c0.root);}).then(function(id){var c1=driveCfg();c1.kucuk=id;driveSaveCfg(c1);return id;});
+}
+function driveListPacks(){
+  if(DRV_PACKS)return Promise.resolve(DRV_PACKS);
+  return driveKucukFolder().then(function(fid){
+    var out={};
+    function page(tok){var q="'"+fid+"' in parents and trashed=false";
+      return driveFetch(DRIVE_API+"/files?q="+encodeURIComponent(q)+"&fields=nextPageToken,files(id,name,appProperties)&pageSize=1000"+(tok?"&pageToken="+tok:"")).then(function(j){
+        (j.files||[]).forEach(function(f){out[f.name]={id:f.id,n:+((f.appProperties||{}).n||0)};});return j.nextPageToken?page(j.nextPageToken):out;});}
+    return page(null);
+  }).then(function(m){DRV_PACKS=m;return m;});
+}
+function drivePullPack(date){
+  var nm=packName(date);if(DRV_PACK_PULLED[nm])return DRV_PACK_PULLED[nm];   // aynı paket iki kez inmesin; inmekte olanı bekle
+  return (DRV_PACK_PULLED[nm]=driveListPacks().then(function(m){var p=m[nm];if(!p)return;
+    return driveFetch(DRIVE_API+"/files/"+p.id+"?alt=media",{},true).then(function(r){return r.json();}).then(function(j){
+      var c=Promise.resolve();Object.keys(j||{}).forEach(function(id){if(thumbMem[id])return;thumbMem[id]=j[id];c=c.then(function(){return idbPutThumb(id,j[id]);});});return c;
+    });
+  }).catch(function(){DRV_PACK_PULLED[nm]=0;}));
+}
+// Eşitlemede: elinde tüm küçük resimleri olan günlerin paketlerini Drive'a yaz (en fazla 3 gün/tur)
+function driveBuildPacks(limit){
+  if(!App.project||!driveEnabled()||!driveTokenOk())return Promise.resolve(0);
+  var idx=photoDayIndex(),byDay={};Object.keys(idx).forEach(function(id){(byDay[idx[id]]=byDay[idx[id]]||[]).push(id);});
+  var built=0;
+  return driveListPacks().then(function(packs){
+    var days=Object.keys(byDay).sort().filter(function(d){var p=packs[packName(d)];return !p||p.n!==byDay[d].length;});
+    var ch=Promise.resolve();
+    days.forEach(function(d){ch=ch.then(function(){
+      if(built>=(limit||3))return;
+      var ids=byDay[d],pack={},missing=0,c2=Promise.resolve();
+      ids.forEach(function(id){c2=c2.then(function(){
+        if(thumbMem[id]){pack[id]=thumbMem[id];return;}
+        return idbGetThumb(id).then(function(t){if(t){thumbMem[id]=t;pack[id]=t;return;}
+          return idbGetOne(id).then(function(f){if(!f){missing++;return;}return ensureThumbFromFull(id,f).then(function(t2){if(t2)pack[id]=t2;else missing++;});});});
+      });});
+      return c2.then(function(){
+        // bu cihazda eksik varsa paketi başka cihaz (fotoğraflar onda) kursun; hiç yoksa atla
+        if(missing&&missing>ids.length*0.1)return;
+        if(!Object.keys(pack).length)return;
+        var blob=new Blob([JSON.stringify(pack)],{type:"application/json"}),nm=packName(d),p=packs[nm];
+        return driveKucukFolder().then(function(fid){
+          var meta={appProperties:{n:String(ids.length)}};
+          return (p?driveMultipart(meta,blob,"PATCH",p.id):driveMultipart({name:nm,parents:[fid],appProperties:{n:String(ids.length)}},blob)).then(function(f){packs[nm]={id:(p&&p.id)||f.id,n:ids.length};built++;});
+        });
+      });
+    });});
+    return ch.then(function(){return built;});
+  }).catch(function(){return built;});
+}
+/* ---- Öğrenme (fotoğraf parmak izleri) Drive'da da durur: telefon silse de, başka cihazda da devam eder ---- */
+function fpToB64(v){var s="";for(var i=0;i<v.length;i++)s+=String.fromCharCode(v[i]);return btoa(s);}
+function b64ToFp(b){var s=atob(b),v=new Array(s.length);for(var i=0;i<s.length;i++)v[i]=s.charCodeAt(i);return v;}
+function driveSyncFps(){
+  if(!driveEnabled()||!driveTokenOk())return Promise.resolve();
+  var c=driveCfg();
+  var pull=DRV.fpPulled?Promise.resolve():driveFolders().then(function(c0){
+    var q="name='izler.json' and '"+c0.root+"' in parents and trashed=false";
+    return driveFetch(DRIVE_API+"/files?q="+encodeURIComponent(q)+"&fields=files(id)").then(function(j){
+      if(!j.files||!j.files.length)return;
+      c.fpId=j.files[0].id;driveSaveCfg(c);
+      return driveFetch(DRIVE_API+"/files/"+c.fpId+"?alt=media",{},true).then(function(r){return r.json();}).then(function(m){
+        var ch=Promise.resolve(),n=0;
+        Object.keys(m||{}).forEach(function(id){if(fpMem[id]&&fpMem[id].length===FP_LEN)return;var v=b64ToFp(m[id]);if(v.length!==FP_LEN)return;n++;ch=ch.then(function(){return saveFpOne(id,v);});});
+        return ch.then(function(){if(n){try{localStorage.removeItem(FPSTAT_KEY);}catch(e){}}c.fpUp=Object.keys(m||{}).length;driveSaveCfg(c);});
+      });
+    });
+  }).then(function(){DRV.fpPulled=true;});
+  return pull.then(function(){
+    var ks=Object.keys(fpMem).filter(function(k){return fpMem[k]&&fpMem[k].length===FP_LEN&&k.indexOf(TH_PREFIX)!==0;});
+    if(ks.length<(c.fpUp||0)+20)return;
+    var o={};ks.forEach(function(k){o[k]=fpToB64(fpMem[k]);});
+    var blob=new Blob([JSON.stringify(o)],{type:"application/json"});
+    return driveFolders().then(function(c0){
+      return (c.fpId?driveMultipart({},blob,"PATCH",c.fpId):driveMultipart({name:"izler.json",parents:[c0.root]},blob)).then(function(f){c.fpId=c.fpId||f.id;c.fpUp=ks.length;driveSaveCfg(c);});
+    });
+  }).catch(function(e){DRV.lastErr=String(e&&e.message||e);});
+}
+/* ---- Var olan günlerin kayıp fotoğraflarını raporlardan tamamla ----
+   Fotoğrafı ne telefonda ne Drive'da olan aşamalar o günün raporundaki fotoğraflarla doldurulur.
+   Fotoğrafı yerinde olan aşamalara dokunulmaz (kopya oluşmasın). */
+function repairDaysFromReports(srcList,onProgress){
+  var res={days:[],photos:0,errors:[],needDays:0};
+  var have={},map={};
+  function pidOf(p){return (p&&p.id)?p.id:p;}
+  function ok(id){return have[id]||(map[id]&&map[id]!=="-");}
+  function allMissing(en){var ps=(en.photos||[]).map(pidOf);return !ps.length||ps.every(function(id){return !ok(id);});}
+  function store(data,path){return bytesToDataUrl(data,path).then(function(u){if(!u)return null;var pid="rw"+genId().slice(1);
+    return storePhotoEverywhere(pid,u).then(function(x){if(!x.local&&!x.drive)return null;res.photos++;have[pid]=1;return pid;});});}
+  DRV_MAP_LISTED=false;
+  return Promise.all([idbListIds(),driveGetMap()]).then(function(r){
+    r[0].forEach(function(id){have[id]=1;});map=r[1]||{};
+    var need={};
+    (App.index||[]).forEach(function(d){var rep=getJSON(reportKey(d),null);if(!rep)return;var n=0;
+      (rep.items||[]).forEach(function(it){(it.entries||[]).forEach(function(en){(en.photos||[]).forEach(function(p){if(!ok(pidOf(p)))n++;});});});
+      (rep.pool||[]).forEach(function(p){if(!ok(pidOf(p)))n++;});
+      if(n)need[d]=n;});
+    res.needDays=Object.keys(need).length;
+    var srcs=Array.prototype.slice.call(srcList||[]).map(function(f){return f.load?f:{name:f.name,load:function(){return readFileAsRetry(f,"buffer");}};});
+    srcs.forEach(function(s,i){s.date=srcDateFromName(s.name);s.kind=srcKind(s.name);s.i=i;});
+    srcs=srcs.filter(function(s){return s.date&&need[s.date];});
+    srcs.sort(function(a,b){if(a.date!==b.date)return a.date<b.date?-1:1;return a.kind-b.kind||a.i-b.i;});
+    var fixedApp={},ch=Promise.resolve();
+    srcs.forEach(function(sx,k){ch=ch.then(function(){
+      if(sx.kind===1&&fixedApp[sx.date])return;
+      onProgress&&onProgress("Tamamlanıyor "+(k+1)+"/"+srcs.length+" · "+sx.name+" · "+res.photos+" fotoğraf");
+      var rep=null,changed=0,touched=[];
+      function claim(en){if(en._rp)return true;if(!allMissing(en))return false;en._rp=1;en.photos=[];touched.push(en);return true;}
+      return sx.load().then(function(buf){
+        var bytes=new Uint8Array(buf);rep=getJSON(reportKey(sx.date),{items:[]});
+        var byName={};(rep.items||[]).forEach(function(it){var kk=itemKeyName(it);if(kk&&!byName[kk])byName[kk]=it;});
+        var c2=Promise.resolve();
+        if(sx.kind===2){
+          return parseDayPhotoZip(bytes,sx.name).then(function(z){
+            var byFile={};(rep.items||[]).forEach(function(it){byFile[fileSafeJob([it.job,it.title].filter(function(x){return x&&x.trim();}).join(" - "))]=it;});
+            z.photos.forEach(function(ph){c2=c2.then(function(){
+              var bn=ph.name.replace(/^.*\//,"").replace(/\.\w+$/,""),m=/^(.*?)(?:-asama(\d+))?-(\d+)$/.exec(bn),it=byFile[m?m[1]:bn];
+              if(!it||!(it.entries||[]).length)return;var en=it.entries[Math.min(m&&m[2]?(+m[2]-1):0,it.entries.length-1)];
+              if(!claim(en))return;
+              return store(ph.data,ph.name).then(function(pid){if(pid){en.photos.push(pid);changed++;}});
+            });});
+            return c2;
+          });
+        }
+        return parseAppReportDocx(bytes).then(function(r){
+          if(r.kind==="app"){
+            fixedApp[sx.date]=1;
+            r.jobs.forEach(function(j){var it=byName[j.name.toLocaleLowerCase("tr")];if(!it)return;
+              j.stages.forEach(function(sg){if(!sg.images.length)return;
+                var nm=sg.name.toLocaleLowerCase("tr"),en=null;
+                (it.entries||[]).forEach(function(e){if(!en&&(e.name||"").trim().toLocaleLowerCase("tr")===nm)en=e;});
+                if(!en&&!nm&&(it.entries||[]).length)en=it.entries[0];
+                if(!en)return;
+                c2=c2.then(function(){
+                  if(!claim(en))return;
+                  var cc=Promise.resolve();
+                  sg.images.forEach(function(path){cc=cc.then(function(){var data=r.files[path];if(!data)return;return store(data,path).then(function(pid){if(pid){en.photos.push(pid);changed++;}});});});
+                  return cc;
+                });
+              });
+            });
+          }else{
+            var pool=(rep.pool||[]).map(pidOf);
+            if(pool.length&&pool.some(function(id){return ok(id);}))return;
+            rep.pool=[];
+            r.images.forEach(function(path){c2=c2.then(function(){var data=r.files[path];if(!data)return;return store(data,path).then(function(pid){if(pid){rep.pool.push(pid);changed++;}});});});
+          }
+          return c2;
+        });
+      }).then(function(){
+        touched.forEach(function(en){delete en._rp;});
+        if(!changed)return;
+        rep.updated=Date.now();setJSON(reportKey(sx.date),rep);
+        if(res.days.indexOf(sx.date)<0)res.days.push(sx.date);
+      }).catch(function(e){res.errors.push(sx.name+": "+(e&&e.message||e));});
+    });});
+    return ch;
+  }).then(function(){driveUpSave(true);_photoDayIdx=null;for(var k in _lazyMiss)delete _lazyMiss[k];for(var k2 in _thMiss)delete _thMiss[k2];if(App.selectedDate)loadDay(App.selectedDate);return res;});
 }
 // Veri geri yüklendikten sonra fotoğrafları arka planda indir
 function driveAfterRestorePhotos(){
@@ -7179,7 +7440,7 @@ function mountBackupSheet(){
     if(_dc.enabled){
       h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
       h+='<button class="btn btn-out" id="drv-sync" style="flex:1;min-width:120px;padding:9px;font-size:12.5px">Şimdi eşitle</button>';
-      h+='<button class="btn btn-out" id="drv-restore" style="flex:1;min-width:120px;padding:9px;font-size:12.5px">Eksik fotoğrafları indir</button>';
+      h+='<button class="btn btn-out" id="drv-restore" style="flex:1;min-width:120px;padding:9px;font-size:12.5px">Tümünü bu cihaza indir</button>';
       h+='</div>';
       h+='<button class="btn btn-navy" id="drv-files" style="width:100%;margin-top:6px;padding:10px;font-size:12.5px">Drive’daki yedek ve raporları kullan</button>';
       h+='<button class="btn btn-out" id="drv-data" style="width:100%;margin-top:6px;padding:9px;font-size:12.5px">Drive’daki işleri bu telefona kur</button>';
@@ -7881,7 +8142,7 @@ function bindSetup(){
       (rep.items||[]).forEach(function(it){(it.entries||[]).forEach(function(en){(en.photos||[]).forEach(function(p){need.push(p);});});});
       (rep.pool||[]).forEach(function(p){need.push(p);});
     }catch(e){}
-    return ensurePhotos(need.slice(0,400));
+    return ensureThumbs(need.map(function(p){return (p&&p.id)?p.id:p;}).slice(0,400));
   }).then(function(){
     updateStorageInfo();
     render(); // fotoğraflar belleğe geldi, yeniden çiz
