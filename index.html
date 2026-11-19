@@ -325,7 +325,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-18e";
+var APP_BUILD="2026-11-19f";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -1138,11 +1138,14 @@ function showIdbBlocked(){
     db_.onclick=function(){var fn="GemiTakip_Tani_"+todayISO()+"_"+String(Date.now()).slice(-5)+".txt";shareOrDownload(fn,new Blob([JSON.stringify(r,null,1)],{type:"text/plain"}),fn);};});};
 }
 function hideIdbBlocked(){var n=document.querySelector("body > .idbblk");if(n&&n.parentNode)n.parentNode.removeChild(n);}
+var IDB_FAILS={n:0,last:""};
 function idbPut(id,data){
-  return new Promise(function(resolve){
-    if(!IDB){resolve(false);return;}
-    try{var tx=IDB.transaction("fotolar","readwrite");tx.objectStore("fotolar").put(data,id);tx.oncomplete=function(){resolve(true);};tx.onerror=function(){resolve(false);};tx.onabort=function(){resolve(false);};}catch(e){resolve(false);}
-  });
+  return idbReady().then(function(){return new Promise(function(resolve){
+    function fail(why){IDB_FAILS.n++;IDB_FAILS.last=why||"?";if(DIAG_ERR.length<30&&IDB_FAILS.n<4)DIAG_ERR.push({t:Date.now(),m:"foto yazılamadı: "+IDB_FAILS.last});resolve(false);}
+    if(!IDB){fail("depo açık değil");return;}
+    try{var tx=IDB.transaction("fotolar","readwrite");tx.objectStore("fotolar").put(data,id);tx.oncomplete=function(){resolve(true);};
+      tx.onerror=function(){fail(tx.error&&tx.error.name);};tx.onabort=function(){fail((tx.error&&tx.error.name)||"iptal");};}catch(e){fail(e&&e.name);}
+  });});
 }
 function idbDel(id){
   return new Promise(function(resolve){
@@ -1187,7 +1190,10 @@ function ensurePhotos(ids){
       return idbGetOne(id).then(function(v){if(v){photoMem[id]=v;touchPhoto(id);}});
     });
   });
-  return chain;
+  return chain.then(function(){
+    var miss=ids.filter(function(id){return !photoMem[id];});
+    if(miss.length&&typeof driveEnabled==="function"&&driveEnabled())return driveFetchPhotos(miss);
+  });
 }
 // Ekranda gerekince arka planda yükle, gelince bir kez yeniden çiz
 var _lazyQ={},_lazyTimer=null,_lazyMiss={};   // _lazyMiss: bulunamayanlar (tekrar denenmez)
@@ -3209,6 +3215,7 @@ function dayHTML(){
   h+='</div>';
   // ---------- Dünden aktarma: bugün boşsa büyük kart, değilse ince şerit ----------
   var carry=prevUnfinished(App.selectedDate);
+  if(carry&&carry.date&&(new Date(App.selectedDate+"T00:00:00")-new Date(carry.date+"T00:00:00"))/86400000>7)carry={items:[]};   // tersane dönemi bitmiş: eski işleri önerme
   var carryPending=carry.items.filter(function(it){var key=(it.job||"")+"||"+it.title;return !App.items.some(function(i){return (i.job||"")+"||"+i.title===key;});});
   if(carryPending.length>0&&App.carryHidden!==App.selectedDate){
     if(!has){
@@ -6658,12 +6665,14 @@ function requestPersist(){
 function checkPhotoStoreWiped(){
   try{
     var ref=referencedPhotoIds(),n=Object.keys(ref).length;if(n<1)return;
-    idbListIds().then(function(ids){
+    Promise.all([idbListIds(),refreshStorageInfo()]).then(function(rr){var ids=rr[0];
       if(ids.length>0)return;
+      if(driveEnabled()&&driveUpCount()>0)return;          // fotoğraflar Drive'dan gerektikçe gelir
       if(document.querySelector("body > .photowipe"))return;
       var b=document.createElement("div");b.className="storerr photowipe";b.style.background="#b45309";
       b.innerHTML='<div style="font-weight:800;font-size:13.5px;margin-bottom:3px">⚠ Fotoğraf deposu boş</div>'+
-        '<div style="font-size:12px;line-height:1.45;opacity:.95">İşler '+n+' fotoğraf gösteriyor ama telefondaki fotoğraf deposu boş. Telefon yer açmak için tarayıcı verisini temizlemiş olabilir; işler ve notlar yerinde. Fotoğrafları eski yedekten geri getirebilirsiniz.</div>'+
+        '<div style="font-size:12px;line-height:1.45;opacity:.95">İşler '+n+' fotoğraf gösteriyor ama telefondaki fotoğraf deposu boş. İşler ve notlar yerinde. Fotoğrafları yedekten geri getirebilirsiniz.</div>'+
+        '<div style="font-size:11px;opacity:.85;margin-top:4px">'+esc(storageInfoLine())+'</div>'+
         (driveEnabled()?'<button id="pw-drive" style="width:100%;margin-top:8px;background:#fff;color:#b45309;font-weight:800;border-radius:9px;padding:8px;font-size:12.5px">Drive\'dan geri indir</button>':'')+
         '<div style="display:flex;gap:8px;margin-top:8px"><button id="pw-open" style="flex:1;background:#fff;color:#b45309;font-weight:800;border-radius:9px;padding:8px;font-size:12.5px">Yedekleme ekranını aç</button>'+
         '<button id="pw-hide" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.6);border-radius:9px;padding:8px 12px;font-size:12.5px">Gizle</button></div>';
@@ -6684,7 +6693,7 @@ var DRV={token:null,exp:0,client:null,busy:false,dirty:false,lastSync:0,lastErr:
 var DRIVE_DEFAULT_CLIENT="964276538283-itcrffiqhcmumtdkl92uq46097csf93t.apps.googleusercontent.com";
 function driveCfg(){var c=getJSON(DRIVE_KEY,null);c=(c&&typeof c==="object")?c:{};if(!c.clientId&&!c.cidCleared&&/github\.io$/.test(location.hostname))c.clientId=DRIVE_DEFAULT_CLIENT;return c;}
 function driveSaveCfg(c){setJSON(DRIVE_KEY,c);}
-function driveUploaded(){var m=getJSON(DRIVE_UP_KEY,{});return (m&&typeof m==="object"&&!Array.isArray(m))?m:{};}
+function driveUploaded(){if(DRV_UPM)return DRV_UPM;var m=getJSON(DRIVE_UP_KEY,{});DRV_UPM=(m&&typeof m==="object"&&!Array.isArray(m))?m:{};return DRV_UPM;}
 function driveEnabled(){var c=driveCfg();return !!(c.clientId&&c.enabled);}
 function driveTokenOk(){return !!DRV.token&&Date.now()<DRV.exp-60000;}
 function driveLoadGis(){
@@ -6710,12 +6719,18 @@ function driveSignIn(silent){
     DRV.client.requestAccessToken({prompt:silent?"":"consent"});
   });});
 }
-function driveFetch(url,opt,raw){
+function driveFetch(url,opt,raw,tries){
   opt=opt||{};opt.headers=opt.headers||{};opt.headers.Authorization="Bearer "+DRV.token;
+  var isGet=!opt.method||opt.method==="GET";tries=tries||0;
   return fetch(url,opt).then(function(r){
     if(r.status===401){DRV.token=null;DRV.needTap=true;throw new Error("Drive oturumu süresi doldu");}
+    if((r.status===429||r.status>=500)&&tries<3)return new Promise(function(z){setTimeout(z,2000*(tries+1));}).then(function(){return driveFetch(url,opt,raw,tries+1);});
     if(!r.ok)return r.text().then(function(t){throw new Error("Drive "+r.status+": "+t.slice(0,120));});
     return raw?r:r.json();
+  },function(e){
+    // ağ kopması: okuma isteklerini birkaç kez tekrar dene
+    if(isGet&&tries<3)return new Promise(function(z){setTimeout(z,1500*(tries+1));}).then(function(){return driveFetch(url,opt,raw,tries+1);});
+    throw e;
   });
 }
 function driveFindOrCreateFolder(name,parent){
@@ -6830,7 +6845,7 @@ function driveSync(manual){
   DRV.busy=true;DRV.lastErr="";driveStatusRender();
   var c;
   return driveFolders().then(function(c0){c=c0;
-    if(DRV.dirty||manual||!c.dataSyncedAt){DRV.dirty=false;return driveUploadData(c).then(function(){c.dataSyncedAt=Date.now();driveSaveCfg(c);});}
+    if(DRV.dirty||manual||!c.dataSyncedAt){DRV.dirty=false;return driveUploadData(c).then(function(r){if(r){c.dataSyncedAt=Date.now();driveSaveCfg(c);setLastBackup();}});}
   }).then(function(){return driveUploadPhotos(c,manual?60:25);}).then(function(r){
     DRV.lastSync=Date.now();DRV.busy=false;driveStatusRender();
     if(r.left>0)setTimeout(function(){driveSync();},1500);           // kuyruk bitene kadar devam
@@ -6858,7 +6873,7 @@ function driveArmTapRefresh(){
   document.addEventListener("click",function(){
     if(!driveEnabled()||driveTokenOk()||DRV._refreshing)return;
     DRV._refreshing=true;
-    driveSignIn(true).then(function(){DRV._refreshing=false;driveSync();},function(){DRV._refreshing=false;});
+    driveSignIn(true).then(function(){DRV._refreshing=false;for(var k in _lazyMiss)delete _lazyMiss[k];render();driveSync();},function(){DRV._refreshing=false;});
   },true);
 }
 /* ---- Drive'daki yedek ve raporları doğrudan kullan (telefona indirmeden) ---- */
@@ -6895,8 +6910,8 @@ function openDriveFilesPanel(){
     if(st.err)h+='<div class="tip" style="color:#b91c1c;margin-bottom:10px">'+esc(st.err)+'</div>';
     if(!st.files){h+='<div style="font-size:12.5px;color:var(--t3)">Drive’daki dosyalar listeleniyor…</div>';}
     else{
-      var backups=st.files.filter(function(f){return /^GemiTakip_(Yedek|Veri)/i.test(f.name)&&/\.(json|txt)$/i.test(f.name);});
-      var reports=st.files.filter(function(f){return /\.(docx|zip)$/i.test(f.name)&&(!ship||f.name.toLocaleLowerCase("tr").indexOf(ship.toLocaleLowerCase("tr").split(" ")[0])>=0);});
+      var backups=st.files.filter(function(f){return (/^GemiTakip_(Yedek|Veri)/i.test(f.name)&&/\.(json|txt)$/i.test(f.name))||(/^GemiTakip_Foto_/i.test(f.name)&&/\.zip$/i.test(f.name));});
+      var reports=st.files.filter(function(f){return /\.(docx|zip)$/i.test(f.name)&&!/^GemiTakip_/i.test(f.name)&&(!ship||f.name.toLocaleLowerCase("tr").indexOf(ship.toLocaleLowerCase("tr").split(" ")[0])>=0);});
       h+='<div style="font-size:12px;font-weight:700;color:var(--t3);margin-bottom:6px">YEDEKLER · gemileri ve fotoğrafları ekler, var olana dokunmaz</div>';
       if(!backups.length)h+='<div class="tip">Drive’da GemiTakip yedeği bulunamadı.</div>';
       backups.forEach(function(f){
@@ -6916,11 +6931,21 @@ function openDriveFilesPanel(){
     Array.prototype.forEach.call(ov.querySelectorAll("[data-dfp-bk]"),function(b){b.onclick=function(){
       var f=st.files.filter(function(x){return x.id===b.getAttribute("data-dfp-bk");})[0];if(!f)return;
       st.busy="Başlıyor…";st.err="";st.result="";draw();
+      if(/\.zip$/i.test(f.name)){
+        driveDownloadBuffer(f.id).then(function(buf){return docxEntries(new Uint8Array(buf));}).then(function(files){
+          var names=Object.keys(files).filter(function(n){return /\.(jpe?g|png|webp)$/i.test(n);}),ok=0,ch=Promise.resolve();
+          names.forEach(function(n){ch=ch.then(function(){var id=n.replace(/^.*\//,"").replace(/\.\w+$/,"");
+            return bytesToDataUrl(files[n],n).then(function(u){if(!u)return;return storePhotoEverywhere(id,u).then(function(r){if(r.local||r.drive)ok++;});});});});
+          return ch.then(function(){driveUpSave(true);for(var k in _lazyMiss)delete _lazyMiss[k];st.busy="";st.result=ok+" fotoğraf geri yüklendi.";draw();});
+        }).catch(function(e){st.busy="";st.err="Aktarılamadı: "+(e&&e.message||e);draw();});
+        return;
+      }
       importBackupAsShips(driveStreamSource(f),function(done,total,photos){
         st.busy=(total?("%"+Math.min(100,Math.round(done*100/total))+" · "):"")+photos+" fotoğraf aktarıldı";var p=document.getElementById("dfp-prog");if(p)p.textContent=st.busy;
       }).then(function(r){
         st.busy="";try{repairSlots();}catch(e){}for(var k in _lazyMiss)delete _lazyMiss[k];
-        st.result=(r.added.length?("Eklenen gemiler: "+esc(r.added.join(", "))+". "):"Yeni gemi eklenmedi, gemiler zaten var. ")+r.photos+" fotoğraf aktarıldı.";
+        st.result=(r.added.length?("Eklenen gemiler: "+esc(r.added.join(", "))+". "):"Yeni gemi eklenmedi, gemiler zaten var. ")+r.photos+" fotoğraf okundu · telefona yazılan "+r.local+" · Drive’a yazılan "+r.drive+".";
+        if(r.photos&&!r.local&&!r.drive)st.err="Fotoğraflar hiçbir yere yazılamadı. "+storageInfoLine();
         if(!App.project&&r.ids&&r.ids.length){loadSlotToActive(r.ids[0]);setActiveSlotId(r.ids[0]);loadAll();App.view="calendar";st.result+=" İlk gemi açıldı.";if(driveEnabled())driveInit();}
         draw();
       }).catch(function(e){st.busy="";st.err="Aktarılamadı: "+(e&&e.message||e);draw();});
@@ -6938,6 +6963,75 @@ function openDriveFilesPanel(){
   draw();
   var go=function(){driveListUserFiles().then(function(fs){st.files=fs;draw();}).catch(function(e){st.files=[];st.err=String(e&&e.message||e);draw();});};
   if(driveTokenOk())go();else driveSignIn(true).then(go,function(e){st.files=[];st.err="Drive’a bağlanılamadı: "+(e&&e.message||e);draw();});
+}
+/* ---- Drive öncelikli fotoğraflar ----
+   Telefon deposu yalnızca önbellek: fotoğraf telefonda yoksa Drive'dan indirilip gösterilir.
+   İçe aktarmalar fotoğrafı doğrudan Drive'a da yazar; telefon deposu silinse bile kayıp olmaz. */
+var DRV_UPM=null,DRV_UPM_DIRTY=0,DRV_MAP_LISTED=false;
+function driveUpSave(force){DRV_UPM_DIRTY++;if(force||DRV_UPM_DIRTY>=10){DRV_UPM_DIRTY=0;setJSON(DRIVE_UP_KEY,DRV_UPM||{});}}
+function driveUpCount(){var m=driveUploaded(),n=0;for(var k in m)if(m[k]&&m[k]!=="-")n++;return n;}
+// Aynı anda en fazla 4 Drive aktarımı
+var DRV_SEM={n:0,q:[]};
+function driveLimited(fn){
+  return new Promise(function(res,rej){
+    function run(){DRV_SEM.n++;Promise.resolve().then(fn).then(function(v){DRV_SEM.n--;next();res(v);},function(e){DRV_SEM.n--;next();rej(e);});}
+    function next(){if(DRV_SEM.q.length&&DRV_SEM.n<4)DRV_SEM.q.shift()();}
+    if(DRV_SEM.n<4)run();else DRV_SEM.q.push(run);
+  });
+}
+var DRV_STATS={up:0,upFail:0,down:0,lastErr:""};
+// İçe aktarımda fotoğrafı hem telefona hem Drive'a yaz. Döner {local,drive}
+function storePhotoEverywhere(id,u){
+  return Promise.all([idbPut(id,u),driveUploadPhotoData(id,u)]).then(function(r){return {local:!!r[0],drive:!!r[1]};});
+}
+// İçe aktarılan fotoğrafı hemen Drive'a yaz (bağlıysa). Döner: true/false
+function driveUploadPhotoData(id,dataUrl){
+  if(!driveEnabled()||!driveTokenOk()||!id||!dataUrl)return Promise.resolve(false);
+  var up=driveUploaded();if(up[id]&&up[id]!=="-")return Promise.resolve(true);
+  var blob=dataUrlToBlob(dataUrl);if(!blob)return Promise.resolve(false);
+  return driveLimited(function(){
+    return driveFolders().then(function(c){
+      return driveMultipart({name:id+"."+(dataUrlParts(dataUrl).ext),parents:[c.photos],appProperties:{gt:id}},blob);
+    }).then(function(f){up[id]=f.id;DRV_STATS.up++;driveUpSave();return true;});
+  }).catch(function(e){DRV_STATS.upFail++;DRV_STATS.lastErr=String(e&&e.message||e);return false;});
+}
+function driveGetMap(){
+  var up=driveUploaded();
+  if(DRV_MAP_LISTED||!driveTokenOk())return Promise.resolve(up);
+  DRV_MAP_LISTED=true;
+  return driveFolders().then(function(c){return driveListPhotos(c);}).then(function(remote){
+    Object.keys(remote).forEach(function(id){up[id]=remote[id];});driveUpSave(true);return up;
+  }).catch(function(){DRV_MAP_LISTED=false;return up;});
+}
+// Telefonda olmayan fotoğrafları Drive'dan getir (ekranda gerektikçe)
+function driveFetchPhotos(ids){
+  if(!driveEnabled()||!driveTokenOk()||!ids.length)return Promise.resolve(0);
+  return driveGetMap().then(function(map){
+    var n=0;
+    return Promise.all(ids.map(function(id){
+      var fid=map[id];if(!fid||fid==="-")return null;
+      return driveLimited(function(){
+        return driveFetch(DRIVE_API+"/files/"+fid+"?alt=media",{},true).then(function(r){return r.blob();}).then(blobToDataUrl).then(function(u){
+          if(!u)return;if(!/^data:image\//.test(u))u=u.replace(/^data:[^;]*;/,"data:image/jpeg;");
+          photoMem[id]=u;touchPhoto(id);n++;DRV_STATS.down++;
+          return idbPut(id,u);
+        });
+      }).catch(function(e){DRV_STATS.lastErr=String(e&&e.message||e);});
+    })).then(function(){return n;});
+  });
+}
+// Telefon deposunun durumu (kota, kalıcı izin, yazma hataları) — sorunları ekrandan görebilmek için
+var STORAGE_INFO={usage:null,quota:null};
+function refreshStorageInfo(){
+  try{if(navigator.storage&&navigator.storage.estimate)return navigator.storage.estimate().then(function(e){STORAGE_INFO.usage=e.usage;STORAGE_INFO.quota=e.quota;});}catch(e){}
+  return Promise.resolve();
+}
+function storageInfoLine(){
+  var s="Telefon deposu: "+(STORAGE_INFO.usage!=null?fmtMB(STORAGE_INFO.usage)+" / "+fmtMB(STORAGE_INFO.quota):"bilinmiyor")+
+    " · kalıcı izin: "+(STORAGE_PERSIST===true?"var":(STORAGE_PERSIST===false?"yok":"?"));
+  if(IDB_FAILS.n)s+=" · yazılamayan: "+IDB_FAILS.n+" ("+IDB_FAILS.last+")";
+  if(driveEnabled())s+=" · Drive’da "+driveUpCount()+" fotoğraf";
+  return s;
 }
 // Veri geri yüklendikten sonra fotoğrafları arka planda indir
 function driveAfterRestorePhotos(){
@@ -7058,7 +7152,7 @@ function deleteOrphanPhotos(list){
   return ch.then(function(){setJSON(BACKUP_PHOTOS_KEY,marks);updateStorageInfo();return n;});
 }
 function resetPhotoBackupMarks(){setJSON(BACKUP_PHOTOS_KEY,{});}
-function openBackupSheet(){App.backupSheet={status:null};render();
+function openBackupSheet(){App.backupSheet={status:null};render();refreshStorageInfo().then(function(){if(App.backupSheet)render();});
   photoBackupStatus().then(function(st){if(App.backupSheet){App.backupSheet.status=st;render();}});
 }
 function mountBackupSheet(){
@@ -7075,6 +7169,7 @@ function mountBackupSheet(){
   h+='<div style="border:1.5px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:11px 12px;margin-bottom:16px">';
   h+='<div style="font-size:12px;font-weight:800;color:#1d4ed8;margin-bottom:4px">DRIVE EŞİTLEME</div>';
   h+='<div style="font-size:12.5px;color:var(--t2);line-height:1.5;margin-bottom:8px">Her fotoğraf ve iş kaydı kendiliğinden Drive’ınızdaki GemiTakip klasörüne de yazılır. Telefon depoyu silse bile buradan geri gelir.</div>';
+  h+='<div style="font-size:11px;color:var(--t3);margin-bottom:4px">'+esc(storageInfoLine())+'</div>';
   h+='<div id="drv-status" style="font-size:12.5px;color:var(--t2);margin-bottom:8px">'+driveStatusText()+' <span style="font-size:10.5px;color:var(--t4)">· sürüm '+APP_BUILD+'</span></div>';
   if(!_dc.clientId){
     h+='<input class="in" id="drv-cid" placeholder="Google Client ID (…apps.googleusercontent.com)" style="margin-bottom:8px"/>';
@@ -7280,7 +7375,8 @@ function shipFingerprint(data){
 function importBackupAsShips(file,onProgress){
   var keys={},pending=[],photos=0,wakeLock=null;
   try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(function(w){wakeLock=w;}).catch(function(){});}catch(e){}
-  function putPhoto(id,val){if(!id||typeof val!=="string"||val.indexOf("data:")!==0)return;photos++;pending.push(idbPut(id,val));}
+  var stLocal=0,stDrive=0;
+  function putPhoto(id,val){if(!id||typeof val!=="string"||val.indexOf("data:")!==0)return;photos++;pending.push(storePhotoEverywhere(id,val).then(function(r){if(r.local)stLocal++;if(r.drive)stDrive++;}));}
   return idbReady().then(function(){if(!IDB)throw new Error("Fotoğraf deposu açılamadı");return loadSlotStore();}).then(function(){
     return streamBackupFile(file,
       function(k,v){if(k.indexOf("tersane_foto_")===0)putPhoto(k.substring(13),v);else keys[k]=v;},
@@ -7314,7 +7410,8 @@ function importBackupAsShips(file,onProgress){
     saveSlots(slots);
     return Promise.all(writes).then(function(){
       try{if(wakeLock)wakeLock.release();}catch(e){}
-      return {added:added,ids:ids,skipped:skipped,photos:photos,date:stamp};
+      if(stDrive)driveUpSave(true);
+      return {added:added,ids:ids,skipped:skipped,photos:photos,local:stLocal,drive:stDrive,date:stamp};
     });
   });
 }
@@ -7507,9 +7604,15 @@ function importReportDays(fileList,onProgress){
 function importReportDaysRun(srcs,onProgress,ship){
   var skipped=[],errors=[],photos=0,added=[],done={},created={};
   srcs.sort(function(a,b){var da=a.date||"9999",db=b.date||"9999";if(da!==db)return da<db?-1:1;if(a.kind!==b.kind)return a.kind-b.kind;return a.i-b.i;});
-  function savePhotoBytes(data,path){return bytesToDataUrl(data,path).then(function(u){if(!u)return null;var pid="rw"+genId().slice(1);photos++;return idbPut(pid,u).then(function(){return pid;});});}
+  function savePhotoBytes(data,path){return bytesToDataUrl(data,path).then(function(u){if(!u)return null;var pid="rw"+genId().slice(1);photos++;return storePhotoEverywhere(pid,u).then(function(){return pid;});});}
   function applyReport(r){
     var index=getJSON(INDEX_KEY,[])||[];
+    // İngilizce rapordan kurulmuş gün, uygulama raporu gelince yeniden kurulur (havuzdaki fotoğraflar korunur)
+    var keepPool=[];
+    if(r.kind==="app"&&index.indexOf(r.date)>=0&&!done[r.date]){
+      var ex=getJSON(reportKey(r.date),null);
+      if(ex&&ex.src==="en"){keepPool=ex.pool||[];index=index.filter(function(d){return d!==r.date;});}
+    }
     if(index.indexOf(r.date)>=0||done[r.date]){if(skipped.indexOf(r.date)<0&&!done[r.date])skipped.push(r.date);return Promise.resolve();}
     var prevDays=index.filter(function(d){return d<r.date;}).sort();
     var base=prevDays.length?(getJSON(reportKey(prevDays[prevDays.length-1]),{items:[]}).items||[]):[];
@@ -7519,7 +7622,7 @@ function importReportDaysRun(srcs,onProgress,ship){
       var bd=buildDayFromReport(r,base,r.date);items=bd.items;
       bd.photoJobs.forEach(function(pj){c3=c3.then(function(){
         var data=r.files[pj.path];if(!data)return;
-        return bytesToDataUrl(data,pj.path).then(function(u){if(!u)return;photos++;return idbPut(pj.id,u);});
+        return bytesToDataUrl(data,pj.path).then(function(u){if(!u)return;photos++;return storePhotoEverywhere(pj.id,u);});
       });});
     }else{
       items=buildCarriedDay(base);
@@ -7527,7 +7630,8 @@ function importReportDaysRun(srcs,onProgress,ship){
       r.images.forEach(function(path){c3=c3.then(function(){var data=r.files[path];if(!data)return;return savePhotoBytes(data,path).then(function(pid){if(pid)pool.push(pid);});});});
     }
     return c3.then(function(){
-      setJSON(reportKey(r.date),{items:items,pool:pool,notes:notes,planExtra:"",updated:Date.now()});
+      var obj={items:items,pool:keepPool.concat(pool),notes:notes,planExtra:"",updated:Date.now()};if(r.kind!=="app")obj.src="en";
+      setJSON(reportKey(r.date),obj);
       index.push(r.date);index.sort();setJSON(INDEX_KEY,index);
       done[r.date]=1;created[r.date]=1;added.push(r.date);
     });
@@ -7551,7 +7655,8 @@ function importReportDaysRun(srcs,onProgress,ship){
   srcs.forEach(function(sx,fi){ch=ch.then(function(){
     // var olan günün dosyasını hiç indirme (ZIP: sadece bu seferde kurulan günler)
     var index=getJSON(INDEX_KEY,[])||[];
-    if(sx.date&&sx.kind!==2&&(index.indexOf(sx.date)>=0||done[sx.date])){if(skipped.indexOf(sx.date)<0&&!done[sx.date])skipped.push(sx.date);return;}
+    var _exEn=(sx.kind===0&&sx.date&&index.indexOf(sx.date)>=0&&!done[sx.date])?((getJSON(reportKey(sx.date),{})||{}).src==="en"):false;
+    if(sx.date&&sx.kind!==2&&!_exEn&&(index.indexOf(sx.date)>=0||done[sx.date])){if(skipped.indexOf(sx.date)<0&&!done[sx.date])skipped.push(sx.date);return;}
     if(sx.date&&sx.kind===2&&!created[sx.date]&&index.indexOf(sx.date)>=0)return;
     onProgress&&onProgress("İşleniyor "+(fi+1)+"/"+srcs.length+" · "+sx.name+(added.length?" · "+added.length+" gün eklendi":""));
     return sx.load().then(function(buf){
@@ -7755,7 +7860,7 @@ function bindSetup(){
   loadAll();
   try{App.showPreview=(getJSON(PREVIEW_KEY,true)!==false);}catch(e){}
   loadSlotStore().then(function(){try{repairSlots();}catch(e){}});   // arşivler yüklenince listeyi gerçek verilerle hizala
-  requestPersist();
+  requestPersist();refreshStorageInfo();
   try{if(location.protocol==="https:"&&navigator.serviceWorker)navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(function(){});}catch(e){}
   driveInit();
   setTimeout(checkPhotoStoreWiped,2500);
