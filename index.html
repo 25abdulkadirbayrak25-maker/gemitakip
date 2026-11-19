@@ -136,7 +136,7 @@ main{padding:18px 0 40px;}
 .item .col{flex:1;min-width:0;display:flex;flex-direction:column;}
 .item .colrow{display:flex;align-items:stretch;}
 .item .stagebar{display:flex;flex-wrap:wrap;gap:5px;padding:2px 12px 10px;}
-.schip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;min-height:24px;padding:2px 8px;font-size:11px;font-weight:600;border:1px solid;line-height:1.15;max-width:100%;transition:transform .1s;}
+.schip{display:inline-flex;align-items:center;gap:3px;border-radius:999px;min-height:20px;padding:1px 7px;font-size:10.5px;font-weight:600;border:1px solid;line-height:1.15;max-width:100%;transition:transform .1s;}
 .schip:active{transform:scale(.94);}
 .sheet.nohelp .tip,.sheet.nohelp .helpline{display:none;}
 .jobidx.side{position:fixed;left:12px;top:84px;bottom:12px;overflow-y:auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 8px;z-index:20;box-shadow:0 4px 16px rgba(11,31,51,.06);}
@@ -144,7 +144,9 @@ main{padding:18px 0 40px;}
 .jobidx .ji-row:hover{background:#f1f5f9;}
 .jobidx .ji-row .n{color:var(--t4);font-family:'IBM Plex Mono';font-size:11px;flex-shrink:0;width:22px;}
 .jobidx .ji-row .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.jobidx .ji-h{font-size:11px;font-weight:700;color:var(--t3);margin:8px 8px 4px;}
+.jobidx .ji-h{display:flex;align-items:center;gap:5px;width:100%;text-align:left;background:none;font-size:11px;font-weight:700;color:var(--t3);margin:6px 0 2px;padding:4px 8px;border-radius:6px;}
+.jobidx .ji-h:hover{background:#f1f5f9;}
+.jobidx .ji-car{display:inline-block;width:12px;font-size:12px;transition:transform .15s;}
 .jobidx-fab{position:fixed;left:14px;bottom:18px;z-index:25;display:flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border-radius:999px;padding:10px 14px;font-size:13px;font-weight:700;box-shadow:0 6px 18px rgba(11,31,51,.35);}
 .cal-cell .cs{display:block;font-size:9px;line-height:1.1;margin-top:1px;font-weight:700;letter-spacing:.2px;}
 .cal-cell .cs .cd{color:#15803d;}.cal-cell .cs .cb{color:#7c3aed;}
@@ -208,10 +210,11 @@ main{padding:18px 0 40px;}
 .sg-ph{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;}
 .sg-ph img,.sg-ph0{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;background:#eef2f7;display:grid;place-items:center;color:var(--t4);}
 .sg-go{margin-top:8px;font-size:12px;font-weight:700;color:var(--orange);background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:6px 10px;}
-.schip .sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.schip .sck{font-size:11px;font-weight:800;flex-shrink:0;line-height:1;}
+.schip .sdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.schip .sck{font-size:10px;font-weight:800;flex-shrink:0;line-height:1;}
 .schip .snm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;}
-.schip.sdone{min-height:21px;padding:1px 7px;font-size:10.5px;font-weight:500;opacity:.8;}
+.schip.sdone{min-height:18px;padding:0 6px;font-size:9.5px;font-weight:500;opacity:.75;}
+.schip .sdt{opacity:.75;font-weight:400;margin-left:2px;}
 .schip.sdone .snm{max-width:110px;}
 .item .promise{display:flex;align-items:center;gap:8px;margin:0 12px 12px;padding:8px 10px;border-radius:10px;background:#ecfdf5;border:1px solid #bbf7d0;font-size:12.5px;color:#166534;}
 .item .promise button{margin-left:auto;flex-shrink:0;background:#16a34a;color:#fff;font-weight:700;border-radius:8px;padding:8px 12px;font-size:12.5px;}
@@ -397,7 +400,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-19n";
+var APP_BUILD="2026-11-19o";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -811,34 +814,34 @@ function itemFromTemplate(tpl,dateISO){
    Yeni iş açarken başlığa (ve gerekirse lokasyona) göre ÖNERİ olarak gösterilir; kendiliğinden uygulanmaz.
    t: bu öneriyi tetikleyen iş başlıkları, j: lokasyonda geçmesi gereken kelimeler (projeye özel kalıplar). */
 var SUGGEST_TPLS=[
- {n:"Scrubber Tower - Upgrade Works",t:["upgrade works","upgrade","modification"],j:["scrubber"],s:["Tower Cleaning","Inspection","Sensor Protection","Scaffolding for Pipe and Insulation Dismounting","Insulation Dismounting","Exhaust Pipe Dismounting","Old Mushroom Cutting","Surface Preparation","New Mushroom Transfer","New Mushroom Welding","New Inlet Pipe Transfer","New Inlet Pipe Welding","New Level Pipe Welding","Crack Welding"]},
- {n:"Bilge Well - Pipe Works",t:["pipe works","pipe mounting","pipe renewing"],j:["bilge well"],s:["Transfer","Scaffolding","Old Pipe Blinding","Cutting","Assembly","Doubler Flange Welding","Float Switch Doubler Welding","Float Switch Mounting","Check Valve Mounting","Pipes Leakage Test","Hydrostatic Test","Suction Filter Mounting","Pneumatic Test","Painting"]},
- {n:"Bilge Well - Steel Works",t:["steel works","steel renewing","steel assembly","steel cutting","steel welding"],j:["bilge well"],s:["Manhole Opening","Gas Free","Marking","Cutting","Plate Installation","Welding","Hydrostatic Test","Grating Mounting","Painting"]},
+ {n:"Scrubber Tower - Upgrade Works",t:["upgrade works","upgrade","modification"],j:["scrubber"],s:["Tower Cleaning","Inspection","Sensor Protection","Scaffolding for Pipe and Insulation Dismounting","Insulation Dismounting","Exhaust Pipe Dismounting","Old Mushroom Cutting","Surface Preparation","New Mushroom Transfer","New Mushroom Welding","New Inlet Pipe Transfer","New Inlet Pipe Welding","New Level Pipe Welding","Crack Repair Welding"]},
+ {n:"Bilge Well - Pipe Works",t:["pipe works","pipe mounting","pipe renewing"],j:["bilge well"],s:["Transfer","Scaffolding","Old Pipe Blinding","Cutting","Assembly","Doubler Flange Welding","Float Switch Doubler Welding","Float Switch Mounting","Check Valve Mounting","Leak Test","Hydrostatic Test","Suction Filter Mounting","Air Test","Painting"]},
+ {n:"Bilge Well - Steel Works",t:["steel works","steel renewing","steel assembly","steel cutting","steel welding"],j:["bilge well"],s:["Manhole Opening","Gas Free","Marking","Cutting","Insert Plate Fit-up","Welding","NDT","Hydrostatic Test","Grating Mounting","Painting"]},
  {n:"Old Bilge Well - Blinding",t:["blinding","blanking"],j:["bilge well"],s:["Surface Preparation","Old Float Switch Dismounting","Pipe Blinding","Cleaning","Plate Mounting","Plate Welding","Grinding","Foam"]},
- {n:"Fire Gun - Installation",t:["installation","pipe mounting","cable pulling","mounting"],j:["fire gun"],s:["Scaffolding","Pipe Mounting","Pipe Penetration and Support Welding","Cable Pulling","Actuator Connection","Gun Connection","Pressure Test"]},
- {n:"CPP - Hub Renewing",t:["hub","hub renewing"],j:["cpp","propeller"],s:["Oil Drain","Blade Dismounting","Shaft Aft Coupling","Shaft Pulling","Hub Renewing","Mounting","Shaft Coupling","Propeller Blades","MPI","Dye Penetrant Test"]},
+ {n:"Fire Gun - Installation",t:["installation","pipe mounting","cable pulling","mounting"],j:["fire gun"],s:["Scaffolding","Pipe Mounting","Pipe Penetration and Support Welding","Cable Pulling","Actuator Connection","Gun Connection","Hydrostatic Test"]},
+ {n:"CPP - Hub Renewing",t:["hub","hub renewing"],j:["cpp","propeller"],s:["Oil Drain","Blade Dismounting","Shaft Aft Coupling","Shaft Pulling","Hub Renewing","Mounting","Shaft Coupling","Propeller Blades","Magnetic Particle Inspection (MPI)","Dye Penetrant Test (PT)"]},
  {n:"Rudder - Bearings Renewing",t:["bearings renewing","bearing renewing","bearing"],j:["rudder"],s:["Gas Free","Nut Access","Nut Removal","Rudder Dismounting","Old Neck Bearing Dismounting","Housing Bush Measurement","Rudder Stock Measurement","Rudder Stock Dismounting","Tiller Dismounting","Old Carrier Bearing Removing","Carrier Bearing Renewing","New Thordon Bearing","Rudder Blade Mounting"]},
- {n:"DG - Overhaul",t:["overhaul","20000 hrs overhaul","unit overhaul"],j:["dg","generator"],s:["Dismounting","Unit Overhaul","Piston Pin UT","Crankshaft Vibration Damper","LO Coupled Pump","Mounting","Test Run"]},
+ {n:"DG - Overhaul",t:["overhaul","20000 hrs overhaul","unit overhaul"],j:["dg","generator"],s:["Dismounting","Unit Overhaul","Piston Pin Ultrasonic Test (UT)","Crankshaft Vibration Damper","LO Coupled Pump","Mounting","Test Run"]},
  {n:"Electrical Motor - Overhaul",t:["overhaul","maintenance"],j:["electrical motor","motor"],s:["Dismounting","Transfer to Workshop","Bearing Renewing","Insulation Test","Mounting","Test Run"]},
- {n:"Hull - Painting",t:["painting","blasting and painting"],j:["hull"],s:["High Pressure Washing","Blasting","Vertical and Flat Bottom (Silicone)","Boottop (Blue)","Topside (White)","Hull Logo and Hull Markings"]},
- {n:"Seachests - Cleaning and Painting",t:["cleaning and painting","cleaning","painting","blasting and painting"],j:["seachest","sea chest"],s:["Grating Opening","High Pressure Washing","Blasting","1st Coat Painting","2nd Coat Painting","Grating Closing"]},
- {n:"Hatch Cover - Gasket Channel Renewing",t:["gasket channel renewing","gasket channel"],j:["hatch cover"],s:["Cutting","Welding","Pressure Washing","Coaming Area","Painting"]},
+ {n:"Hull - Painting",t:["painting","blasting and painting"],j:["hull"],s:["High Pressure Fresh Water Washing","Blast Cleaning (Sa 2½)","Vertical and Flat Bottom (Silicone)","Boot Top (Blue)","Topside (White)","Hull Logo and Hull Markings"]},
+ {n:"Seachests - Cleaning and Painting",t:["cleaning and painting","cleaning","painting","blasting and painting"],j:["seachest","sea chest"],s:["Grating Opening","High Pressure Fresh Water Washing","Blast Cleaning (Sa 2½)","Stripe Coat","1st Coat","2nd Coat","DFT Check","Grating Closing"]},
+ {n:"Hatch Cover - Gasket Channel Renewing",t:["gasket channel renewing","gasket channel"],j:["hatch cover"],s:["Cutting","Welding","High Pressure Fresh Water Washing","Coaming Area","Painting"]},
  {n:"Davit / Crane - Steel Rope Renewing",t:["steel rope renewing","steel rope","wire rope"],j:["davit","crane"],s:["Dismounting","Steel Rope Renewing","Hydraulic Unit Maintenance","Load Test"]},
  {n:"Boiler - Valve Overhaul",t:["valve overhaul"],j:["boiler"],s:["Safety Valves Dismounting","Other Valves Dismantling","Overhaul","Mounting","Safety Valve Setting Test"]},
- {n:"Coolers - Cleaning",t:["cleaning","maintenance"],j:["cooler"],s:["Dismounting","Transfer","Cleaning","Mounting","Pressure Test"]},
+ {n:"Coolers - Cleaning",t:["cleaning","maintenance"],j:["cooler"],s:["Dismounting","Transfer","Cleaning","Mounting","Hydrostatic Test"]},
  {n:"Tanks - Cleaning",t:["cleaning","tank cleaning"],j:["tk","tank","sump","sludge","bilge"],s:["Manhole Opening","Gas Free","Cleaning","Sludge Disposing","Inspection","Manhole Closing"]},
- {n:"Steel Renewing",t:["steel renewing","steel renewal","steel works","steel assembly","steel cutting","steel welding","plate renewing"],s:["Marking","Scaffolding","Cutting","Plate Installation","Welding","Pneumatic Test","Painting"]},
+ {n:"Steel Renewal",t:["steel renewing","steel renewal","steel works","steel assembly","steel cutting","steel welding","plate renewing"],s:["Marking","Scaffolding","Cutting","Insert Plate Fit-up","Welding","NDT","Air Test","Painting"]},
  {n:"Renewing",t:["renewing","renewal","changing","replacement","removal","stopper renewing","manhole renewing"],s:["Dismounting","Transfer","Renewing","Mounting","Test"]},
  {n:"Maintenance",t:["maintenance","service","hydraulic unit maintenance","hidrolik unit maintenance"],s:["Dismounting","Transfer","Dismantling","Cleaning","Overhaul","Painting","Mounting","Test"]},
  {n:"Overhaul",t:["overhaul","unit overhaul","valve overhaul","20000 hrs overhaul"],s:["Dismounting","Unit Overhaul","Measurement","Mounting","Test Run"]},
- {n:"Blasting and Painting",t:["blasting and painting","painting","blasting","protection"],s:["Protection","High Pressure Washing","Blasting","1st Coat Painting","2nd Coat Painting","Last Coat Painting"]},
- {n:"Cleaning and Painting",t:["cleaning and painting"],s:["Protection","High Pressure Washing","Mechanical Treatment","1st Coat Painting","Last Coat Painting"]},
+ {n:"Blasting and Painting",t:["blasting and painting","painting","blasting","protection"],s:["Protection","High Pressure Fresh Water Washing","Blast Cleaning (Sa 2½)","Stripe Coat","1st Coat","2nd Coat","Final Coat","DFT Check"]},
+ {n:"Cleaning and Painting",t:["cleaning and painting"],s:["Protection","High Pressure Fresh Water Washing","Power Tool Cleaning (St 3)","Stripe Coat","1st Coat","Final Coat","DFT Check"]},
  {n:"Cleaning",t:["cleaning"],s:["Manhole Opening","Gas Free","Cleaning","Sludge Disposing","Inspection","Manhole Closing"]},
  {n:"Pipe Works",t:["pipe works","pipe mounting","pipe renewing","renewing steam pipe","modification"],s:["Transfer","Scaffolding","Old Pipe Blinding","Cutting","Assembly","Welding","Hydrostatic Test","Painting"]},
- {n:"Gasket Renewing",t:["gasket renewing","gasket renewal","gasket channel renewing"],s:["Old Gasket Removing","Mechanical Treatment","Painting","Gasket Renewing","Chalk Test","Hose Test"]},
+ {n:"Gasket Renewing",t:["gasket renewing","gasket renewal","gasket channel renewing"],s:["Old Gasket Removing","Power Tool Cleaning (St 3)","Painting","Gasket Renewing","Chalk Test","Hose Test"]},
  {n:"Installation",t:["installation","mounting","cable pulling","new turnbuckle installation","heating cable installation"],s:["Transfer","Scaffolding","Installation","Welding","Cable Pulling","Test"]},
  {n:"Blinding",t:["blinding","blanking"],s:["Surface Preparation","Dismounting","Pipe Blinding","Plate Mounting","Plate Welding","Grinding"]},
- {n:"High Pressure Washing",t:["high pressure washing","hp washing","washing"],s:["Scaffolding","High Pressure Washing"]},
+ {n:"High Pressure Washing",t:["high pressure washing","hp washing","washing"],s:["Scaffolding","High Pressure Fresh Water Washing"]},
  {n:"Access",t:["access","access works"],s:["Scaffolding","Protection","Cutting","Mounting"]},
  {n:"Inspection",t:["inspection","measurement","thickness measurement","control and test","test"],s:["Opening","Inspection","Closing"]},
  {n:"Welding",t:["welding","doubler welding","grinding"],s:["Surface Preparation","Welding","Grinding"]}
@@ -3289,7 +3292,7 @@ function itemsListHTML(){
     if(collapsed)return;
     dispIdx++;var pc=itemPhotoCount(it);
     var thumbIds=itemPhotoIds(it);var thumbHtml="";
-    if(App.showThumbs&&thumbIds.length){var show=thumbIds.slice(0,5);thumbHtml='<div class="thumbs">';show.forEach(function(pid){var dt=thumbData(pid);if(dt)thumbHtml+='<img src="'+dt+'"/>';});if(thumbIds.length>5)thumbHtml+='<span class="more">+'+(thumbIds.length-5)+'</span>';thumbHtml+='</div>';}
+    if(App.showThumbs&&thumbIds.length){var show=thumbIds.slice(0,5);thumbHtml='<div class="thumbs">';show.forEach(function(pid,pi){var dt=thumbData(pid);if(dt)thumbHtml+='<img src="'+dt+'" data-cardph="'+esc(it.id)+'" data-pi="'+pi+'" style="cursor:zoom-in"/>';});if(thumbIds.length>5)thumbHtml+='<span class="more">+'+(thumbIds.length-5)+'</span>';thumbHtml+='</div>';}
     var sel=!!App.selected[it.id];
     var fullTitle=[it.job,it.title].filter(function(x){return x&&x.trim();}).map(esc).join(" - ")||esc(it.title);
     var metaInner='<div class="meta"><span class="chip" style="color:'+s.tx+';background:'+s.bg+';border-color:'+s.ring+'">'+statusIcon(it.status)+' '+s.label+'</span>'+(itemPg(it)>0?'<span class="pchip">%'+itemPg(it)+'</span>':"")+(it.bolum?'<span class="mtag">'+I("tag")+' '+esc(it.bolum)+'</span>':"")+((it.entries||[]).length>1?'<span class="mtag">'+I("layers")+' '+it.entries.length+' aşama</span>':"")+(pc?'<span class="mtag">'+I("img")+' '+pc+' foto</span>':"")+'</div>';
@@ -3312,7 +3315,7 @@ function itemsListHTML(){
         var nm=(en.name||"").trim();
         if(!nm)nm=(_ens.length>1?("Aşama "+(ei+1)):"Durum");
         var mark=(es==="tamam")?'<span class="sck">✓</span>':'<span class="sdot" style="background:'+ss.dot+'"></span>';
-        stageBar+='<span class="schip'+(es==="tamam"?" sdone":"")+'" title="'+esc(nm)+' — '+ss.label+'" style="color:'+ss.tx+';background:'+ss.bg+';border-color:'+ss.ring+'">'+mark+'<span class="snm">'+esc(nm)+'</span></span>';
+        stageBar+='<span class="schip'+(es==="tamam"?" sdone":"")+'" title="'+esc(nm)+' — '+ss.label+'" style="color:'+ss.tx+';background:'+ss.bg+';border-color:'+ss.ring+'">'+mark+'<span class="snm">'+esc(nm)+'</span>'+(es==="tamam"&&en.doneDate?'<span class="sdt">· '+esc(fmtDayMonEN(en.doneDate))+'</span>':'')+'</span>';
       });
       stageBar+='</div>';
     }
@@ -3521,6 +3524,15 @@ function bindItemEvents(){
     el.addEventListener("click",function(ev){if(usedTouch){usedTouch=false;return;}if(App.selectMode){ev.preventDefault();tap();}});
   });
   Array.prototype.forEach.call(document.querySelectorAll("[data-detail]"),function(b){b.onclick=function(ev){if(App.selectMode){ev.stopPropagation();return;}openEditItem(b.getAttribute("data-detail"));};});
+  // kart üzerindeki küçük fotoğrafa dokununca doğrudan büyük göster (işin tüm fotoğrafları arasında kaydırılabilir)
+  Array.prototype.forEach.call(document.querySelectorAll("[data-cardph]"),function(im){im.onclick=function(ev){
+    if(App.selectMode)return;ev.stopPropagation();ev.preventDefault();
+    var id=im.getAttribute("data-cardph"),it=App.items.filter(function(x){return x.id===id;})[0];if(!it)return;
+    var nm=[it.job,it.title].filter(Boolean).join(" - ");
+    var list=itemPhotoIds(it).map(function(p){return {url:photoData(p)||thumbData(p)||"",pid:p,cap:nm};}).filter(function(x){return x.url;});
+    if(!list.length)return;var pi=Math.min(+im.getAttribute("data-pi")||0,list.length-1);
+    App.lbList=list;App.lbIdx=pi;App.lightbox=list[pi].url;render();
+  };});
 }
 function dayHTML(){
   var p=App.project,tISO=todayISO(),sel=App.selectedDate,dnLbl=dayNoLabel(p,sel),c=statusCounts(App.items);
@@ -3969,13 +3981,31 @@ function mountHistPop(){
 
 /* ---- Gün ekranında iş listesi: geniş ekranda solda sabit, telefonda düğmeyle açılır; dokununca o işe kayar ---- */
 function jobIndexList(){
+  var q=String(App._jiQ||"").trim().toLocaleLowerCase("tr");App._jiCol=App._jiCol||{};
   var groups={},order=[];
-  sortItems(App.items.slice()).forEach(function(it,i){var g=st(it.status).label;if(!groups[g]){groups[g]=[];order.push(g);}groups[g].push({it:it,n:i+1});});
-  var h='';
-  order.forEach(function(g){h+='<div class="ji-h">'+esc(g)+' ('+groups[g].length+')</div>';
-    groups[g].forEach(function(o){var s_=st(o.it.status);
-      h+='<button class="ji-row" data-jump="'+esc(o.it.id)+'"><span class="dotc" style="background:'+s_.dot+';flex-shrink:0"></span><span class="t">'+(o.it.major?'★ ':'')+esc([o.it.job,o.it.title].filter(Boolean).join(" - ")||o.it.title||"")+'</span></button>';});});
+  sortItems(App.items.slice()).forEach(function(it,i){var g=st(it.status).label;if(!groups[g]){groups[g]=[];order.push(g);}
+    var nm=[it.job,it.title].filter(Boolean).join(" - ")||it.title||"";
+    if(q&&(nm+" "+(it.entries||[]).map(function(e){return e.name||"";}).join(" ")).toLocaleLowerCase("tr").indexOf(q)<0)return;
+    groups[g].push({it:it,n:i+1,nm:nm});});
+  var h='',any=false;
+  order.forEach(function(g){var L=groups[g];if(!L.length)return;any=true;var col=!q&&App._jiCol[g];
+    h+='<button class="ji-h" data-jig="'+esc(g)+'"><span class="ji-car" style="transform:rotate('+(col?'-90deg':'0deg')+')">▾</span>'+esc(g)+' ('+L.length+')</button>';
+    if(col)return;
+    L.forEach(function(o){var s_=st(o.it.status);
+      h+='<button class="ji-row" data-jump="'+esc(o.it.id)+'"><span class="dotc" style="background:'+s_.dot+';flex-shrink:0"></span><span class="t">'+(o.it.major?'★ ':'')+esc(o.nm)+'</span></button>';});});
+  if(!any)h+='<div style="font-size:12px;color:var(--t4);padding:8px">Eşleşen iş yok.</div>';
   return h;
+}
+function jobIndexHead(){return '<input class="in ji-q" placeholder="İşlerde ara…" value="'+esc(App._jiQ||"")+'" style="margin:2px 0 6px;padding:7px 10px;font-size:12.5px;height:auto"/>';}
+function bindJobIndex(root,onJump){
+  var box=root.querySelector(".ji-list");
+  function paint(){box.innerHTML=jobIndexList();wire();}
+  function wire(){
+    Array.prototype.forEach.call(box.querySelectorAll("[data-jump]"),function(b){b.onclick=function(){onJump(b.getAttribute("data-jump"));};});
+    Array.prototype.forEach.call(box.querySelectorAll("[data-jig]"),function(b){b.onclick=function(){var g=b.getAttribute("data-jig");App._jiCol=App._jiCol||{};App._jiCol[g]=!App._jiCol[g];paint();};});
+  }
+  var qi=root.querySelector(".ji-q");if(qi)qi.oninput=function(){App._jiQ=qi.value;paint();};
+  wire();
 }
 function jumpToCard(id){
   var el=document.getElementById("card-"+id);if(!el)return;
@@ -3987,20 +4017,20 @@ function mountJobIndex(){
   var W=window.innerWidth||0,side=Math.floor((W-920)/2)-24;
   if(side>=180){
     var a=document.createElement("aside");a.className="jobidx side";a.style.width=Math.min(280,side)+"px";
-    a.innerHTML='<div style="font-weight:800;font-size:13px;color:var(--navy);margin:2px 8px 4px">İşler</div>'+jobIndexList();
+    a.innerHTML='<div style="font-weight:800;font-size:13px;color:var(--navy);margin:2px 8px 4px">İşler</div>'+jobIndexHead()+'<div class="ji-list">'+jobIndexList()+'</div>';
     document.body.appendChild(a);
-    Array.prototype.forEach.call(a.querySelectorAll("[data-jump]"),function(b){b.onclick=function(){jumpToCard(b.getAttribute("data-jump"));};});
+    bindJobIndex(a,function(id){jumpToCard(id);});
     return;
   }
   var fab=document.createElement("button");fab.className="jobidx jobidx-fab";fab.innerHTML=I("layers")+' İşler';
   document.body.appendChild(fab);
   fab.onclick=function(){
     var ov=document.createElement("div");ov.className="ov jobidx";
-    ov.innerHTML='<div class="sheet an-pop" style="max-height:80vh"><div class="sheet-h"><div class="t">'+I("layers")+' İşler ('+App.items.length+')</div><button class="icon-btn" style="background:#f1f5f9;color:var(--t3)" id="ji-x">'+I("x")+'</button></div><div class="sheet-b" style="padding:6px 8px 14px">'+jobIndexList()+'</div></div>';
+    ov.innerHTML='<div class="sheet an-pop" style="max-height:80vh"><div class="sheet-h"><div class="t">'+I("layers")+' İşler ('+App.items.length+')</div><button class="icon-btn" style="background:#f1f5f9;color:var(--t3)" id="ji-x">'+I("x")+'</button></div><div class="sheet-b" style="padding:6px 8px 14px">'+jobIndexHead()+'<div class="ji-list">'+jobIndexList()+'</div></div></div>';
     document.body.appendChild(ov);
     function close(){if(ov.parentNode)ov.parentNode.removeChild(ov);}
     ov.querySelector("#ji-x").onclick=close;ov.onclick=function(ev){if(ev.target===ov)close();};
-    Array.prototype.forEach.call(ov.querySelectorAll("[data-jump]"),function(b){b.onclick=function(){close();jumpToCard(b.getAttribute("data-jump"));};});
+    bindJobIndex(ov,function(id){close();jumpToCard(id);});
   };
 }
 /* ---- Major işler listesi: tüm günlerden, her iş bir kez ---- */
@@ -8915,7 +8945,7 @@ function geminiCall(prompt){
   var c=geminiCfg();if(!c.key)return Promise.reject(new Error("Gemini anahtarı yok"));
   if(typeof navigator.onLine==="boolean"&&!navigator.onLine)return Promise.reject(new Error("İnternet bağlantısı yok"));
   // Model yoğunsa ya da bulunamazsa sıradakine geç; hepsi yoğunsa kısa bir beklemeden sonra bir tur daha dene
-  var chain=[c.model||GEMINI_DEFAULT_MODEL,GEMINI_DEFAULT_MODEL,"gemini-2.5-flash","gemini-2.5-flash-lite"].filter(function(x,i,a){return x&&a.indexOf(x)===i;});
+  var chain=[];
   var lastErr=null;
   function one(m){
     return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(m)+":generateContent",{
@@ -8937,7 +8967,8 @@ function geminiCall(prompt){
         var busy=x.status===503||x.status===500||x.status===429||/high demand|overloaded|unavailable/i.test(raw);
         lastErr=new Error(busy?(x.status===429?"Ücretsiz kullanım sınırı doldu, biraz sonra tekrar deneyin":"Gemini şu an çok yoğun, birkaç dakika sonra tekrar deneyin"):raw);
         lastErr.retry=busy;
-        if(busy||x.status===404)return attempt(i+1,round);
+        if(!busy&&m===c.model){var c3=geminiCfg();delete c3.model;geminiSaveCfg(c3);}
+        if(busy||x.status===404||/no longer available|not found|not supported|deprecated/i.test(raw))return attempt(i+1,round);
         throw lastErr;
       }
       var parts=(((x.j.candidates||[])[0]||{}).content||{}).parts||[];
@@ -8947,7 +8978,23 @@ function geminiCall(prompt){
       return t.replace(/^["“]+|["”]+$/g,"").replace(/^\s*(English|Translation)\s*:\s*/i,"").trim();
     },function(e){if(e&&/Anahtar/.test(e.message))throw e;lastErr=new Error("Bağlantı kurulamadı");lastErr.retry=true;return attempt(i+1,round);});
   }
-  return attempt(0,0);
+  // Google model adlarını sık değiştiriyor: hesabın kullanabildiği modelleri sorup en uygun "flash" modellerini sırala
+  return geminiModels(c.key).then(function(list){
+    chain=[c.model].concat(list).concat([GEMINI_DEFAULT_MODEL,"gemini-flash-lite-latest"]).filter(function(x,i,a){return x&&a.indexOf(x)===i;}).slice(0,7);
+    return attempt(0,0);
+  });
+}
+var GEMINI_MODELS_CACHE=null;
+function geminiModels(key){
+  if(GEMINI_MODELS_CACHE&&GEMINI_MODELS_CACHE.key===key&&Date.now()-GEMINI_MODELS_CACHE.t<6*3600e3)return Promise.resolve(GEMINI_MODELS_CACHE.list);
+  return fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}}).then(function(r){return r.ok?r.json():{models:[]};}).then(function(j){
+    var L=(j.models||[]).filter(function(m){var n=String(m.name||"");return /gemini/.test(n)&&/flash/.test(n)&&(m.supportedGenerationMethods||[]).indexOf("generateContent")>=0&&!/image|tts|audio|live|embed|thinking-exp|robotics|computer/.test(n);})
+      .map(function(m){return String(m.name).replace(/^models\//,"");});
+    function ver(n){var m=/gemini-(\d+(?:\.\d+)?)/.exec(n);return m?parseFloat(m[1]):0;}
+    function rank(n){return (/latest$/.test(n)?1000:0)+ver(n)*10-(/lite/.test(n)?3:0)-(/preview|exp/.test(n)?5:0)-(/-\d{3,}$/.test(n)?1:0);}
+    L.sort(function(a,b){return rank(b)-rank(a);});
+    GEMINI_MODELS_CACHE={key:key,t:Date.now(),list:L};return L;
+  },function(){return [];});
 }
 // İşin bağlamıyla birlikte rapor dilinde cümle iste
 function geminiReportPrompt(d,tr,kind,dateISO){
