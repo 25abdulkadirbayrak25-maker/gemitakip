@@ -400,7 +400,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-25a";
+var APP_BUILD="2026-11-25b";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7499,6 +7499,7 @@ function driveLoadGis(){
 // Kullanıcı dokunuşu içinde çağrılmalı (Google penceresi açılır)
 function driveSignIn(silent){
   var c=driveCfg();if(!c.clientId)return Promise.reject(new Error("Client ID yok"));
+  if(typeof navigator.onLine==="boolean"&&!navigator.onLine)return Promise.reject(new Error("İnternet yok; Drive bağlantısı internet gelince yapılır"));
   return driveLoadGis().then(function(){return new Promise(function(resolve,reject){
     DRV.client=google.accounts.oauth2.initTokenClient({client_id:c.clientId,scope:"https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly",
       callback:function(r){
@@ -7666,10 +7667,14 @@ function driveStatusText(){
 // Oturum süresi dolunca: kullanıcının bir sonraki dokunuşunda sessizce yenile (Google penceresi dokunuş içinde açılabilir)
 function driveArmTapRefresh(){
   if(DRV._armed)return;DRV._armed=true;
+  window.addEventListener("online",function(){DRV._lastTapTry=0;if(driveEnabled()&&driveTokenOk())driveSync();else{DRV.needTap=true;driveStatusRender();}});
   document.addEventListener("click",function(){
     if(!driveEnabled()||driveTokenOk()||DRV._refreshing)return;
-    DRV._refreshing=true;
-    driveSignIn(true).then(function(){DRV._refreshing=false;for(var k in _lazyMiss)delete _lazyMiss[k];render();driveSync();},function(){DRV._refreshing=false;});
+    // internet yokken Google giriş penceresi açılmasın (Chrome'un "bağlı değilsiniz" sayfası çıkıyordu)
+    if(typeof navigator.onLine==="boolean"&&!navigator.onLine)return;
+    if(DRV._lastTapTry&&Date.now()-DRV._lastTapTry<60000)return;   // başarısız denemeden sonra her dokunuşta tekrar açılmasın
+    DRV._lastTapTry=Date.now();DRV._refreshing=true;
+    driveSignIn(true).then(function(){DRV._refreshing=false;DRV._lastTapTry=0;for(var k in _lazyMiss)delete _lazyMiss[k];render();driveSync();},function(){DRV._refreshing=false;});
   },true);
 }
 /* ---- Drive'daki yedek ve raporları doğrudan kullan (telefona indirmeden) ---- */
