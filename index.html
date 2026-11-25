@@ -400,7 +400,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-25b";
+var APP_BUILD="2026-11-25c";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7085,6 +7085,7 @@ function mountSettings(){
     h+='<div class="tip">"Arşivle, Yeni Gemiye Geç" mevcut geminin tüm verisini arşive alır ve boş bir gemi başlatır. Arşivlenmiş bir geminin işlerini görmek için "İşlerini Gör" ile o gemiye geçebilir, sonra tekrar dönebilirsiniz. "Şablonları Yükle" ise o geminin bölüm, lokasyon ve iş başlığı listelerini mevcut gemiye ekler (üzerine yazmaz). Fotoğraflar korunur.</div></div>';
     }
     h+='<button class="btn btn-navy" id="se-save">Kaydet</button>';
+    h+='<div style="font-size:11.5px;color:var(--t3);margin-top:12px;text-align:center">Sürüm '+APP_BUILD+'</div>';
     h+='</div></div>';
     ov.innerHTML=h;
     var _newSb=ov.querySelector(".sheet-b");if(_newSb&&_sbScroll){_newSb.scrollTop=_sbScroll;if(typeof requestAnimationFrame==="function")requestAnimationFrame(function(){_newSb.scrollTop=_sbScroll;});}
