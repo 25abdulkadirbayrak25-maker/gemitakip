@@ -400,7 +400,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-25c";
+var APP_BUILD="2026-11-25f";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7600,6 +7600,18 @@ function driveListPhotos(c){
   }
   return page(null);
 }
+var DRV_DL_KEY="gt_drv_indirme";
+function driveDlPending(){try{return !!localStorage.getItem(DRV_DL_KEY);}catch(e){return false;}}
+// Yarım kalan indirmeye "Devam et" ile dönülür. Kota için hiçbir zaman kendiliğinden başlamaz.
+function driveResumeDownload(){
+  var f=null;try{f=localStorage.getItem(DRV_DL_KEY);}catch(e){}
+  if(!f||DRV.downloading||!driveEnabled()||!driveTokenOk())return;
+  if(typeof navigator.onLine==="boolean"&&!navigator.onLine)return;
+  toast("Fotoğraf indirmesi kaldığı yerden devam ediyor…");
+  driveRestoreMissing(function(d,t){DRV.dlProg=d+" / "+t;var p=document.getElementById("drv-prog");if(p)p.textContent=d+" / "+t+" fotoğraf indirildi";})
+    .then(function(r){DRV.dlProg="";toast(DRV.dlStop?"İndirme durduruldu, "+r.downloaded+" fotoğraf indi":(r.downloaded+" fotoğraf indirildi"+(r.failed?(", "+r.failed+" tanesi inmedi; Devam et ile tekrar denenir"):"")));if(App.backupSheet)render();},function(){if(App.backupSheet)render();});
+  if(App.backupSheet)setTimeout(render,50);
+}
 // Eksik fotoğrafları Drive'dan indir
 function driveRestoreMissing(onProgress){
   if(DRV.downloading)return DRV.downloading;
@@ -7610,15 +7622,23 @@ function driveRestoreMissing(onProgress){
     var ref=referencedPhotoIds();
     var need=Object.keys(remote).filter(function(id){return !have[id];});
     need.sort(function(a,b){return (ref[b]?1:0)-(ref[a]?1:0);});     // işlerde kullanılanlar önce
-    var done=0,ch=Promise.resolve();
-    need.forEach(function(id){ch=ch.then(function(){
+    // indirme sürüyor işareti: uygulama kapanırsa bir sonraki açılışta kaldığı yerden devam eder
+    try{localStorage.setItem(DRV_DL_KEY,need.length?String(Date.now()):"");if(!need.length)localStorage.removeItem(DRV_DL_KEY);}catch(e){}
+    var done=0,fail=0,stop=false;DRV.dlStop=false;
+    // 4 fotoğraf aynı anda; tek bir fotoğraf hata verirse indirme durmaz, o fotoğraf atlanır
+    var jobs=need.map(function(id){return driveLimited(function(){
+      if(stop||DRV.dlStop)return null;
       return driveFetch(DRIVE_API+"/files/"+remote[id]+"?alt=media",{},true).then(function(res){return res.blob();}).then(blobToDataUrl).then(function(u){
-        if(!u)return;
+        if(!u){fail++;return;}
         if(!/^data:image\//.test(u))u=u.replace(/^data:[^;]*;/,"data:image/jpeg;");
-        done++;return idbPut(id,u).then(function(){if(onProgress&&done%5===0)onProgress(done,need.length);});
-      });
+        return idbPut(id,u).then(function(){done++;if(onProgress&&done%5===0)onProgress(done,need.length);});
+      }).catch(function(e){fail++;if(/oturumu süresi doldu/.test(String(e&&e.message)))stop=true;});
     });});
-    return ch.then(function(){for(var k in _lazyMiss)delete _lazyMiss[k];return {downloaded:done,total:need.length};});
+    return Promise.all(jobs).then(function(){
+      for(var k in _lazyMiss)delete _lazyMiss[k];
+      if(!DRV.dlStop&&!stop&&!fail){try{localStorage.removeItem(DRV_DL_KEY);}catch(e){}}
+      return {downloaded:done,total:need.length,failed:fail,stopped:stop};
+    });
   });
   return DRV.downloading.then(function(r){DRV.downloading=null;return r;},function(e){DRV.downloading=null;throw e;});
 }
@@ -8293,7 +8313,10 @@ function mountBackupSheet(){
       h+='<button class="btn btn-navy" id="drv-files" style="width:100%;margin-top:6px;padding:10px;font-size:12.5px">Drive’daki yedek ve raporları kullan</button>';
       h+='<button class="btn btn-out" id="drv-data" style="width:100%;margin-top:6px;padding:9px;font-size:12.5px">Drive’daki işleri bu telefona kur</button>';
     }
-    h+='<div id="drv-prog" style="font-size:12px;color:var(--t3);margin-top:6px"></div>';
+    h+='<div id="drv-prog" style="font-size:12px;color:var(--t3);margin-top:6px">'+(DRV.downloading?esc(DRV.dlProg?DRV.dlProg+" fotoğraf indirildi":"Fotoğraflar iniyor…"):"")+'</div>';
+    if(DRV.downloading)h+='<button class="btn btn-out" id="drv-dlstop" style="width:100%;margin-top:6px;padding:9px;font-size:12.5px;color:#b91c1c;border-color:#fecaca">❚❚ Fotoğraf indirmesini durdur</button>';
+    else if(driveDlPending())h+='<button class="btn btn-navy" id="drv-dlgo" style="width:100%;margin-top:6px;padding:9px;font-size:12.5px">▶ Yarım kalan indirmeye devam et</button><button id="drv-dlcancel" style="display:block;margin:4px auto 0;font-size:11.5px;color:var(--t3);text-decoration:underline;background:none">Vazgeç, kalanları indirme</button>';
+    h+='<div style="font-size:11px;color:var(--t4);text-align:center;margin-top:3px">İndirme hiçbir zaman kendiliğinden başlamaz; durdurduğunda inenler telefonda kalır.</div>';
     h+='<button id="drv-reset" style="display:block;margin:6px auto 0;font-size:11.5px;color:var(--t3);text-decoration:underline;background:none">Client ID’yi değiştir</button>';
   }
   h+='</div>';
@@ -8357,10 +8380,16 @@ function mountBackupSheet(){
       .catch(function(e){toast("Bağlanamadı: "+(e&&e.message||e));render();});
   };
   var dsy=ov.querySelector("#drv-sync");if(dsy)dsy.onclick=function(){if(!driveTokenOk()){driveSignIn(true).then(function(){driveSync(true);});return;}driveSync(true);};
+  var dst=ov.querySelector("#drv-dlstop");if(dst)dst.onclick=function(){DRV.dlStop=true;dst.disabled=true;dst.textContent="Durduruluyor…";toast("İndirme durduruluyor; inenler telefonda kalır, Devam et ile sürdürebilirsin");};
+  var dgo=ov.querySelector("#drv-dlgo");if(dgo)dgo.onclick=function(){
+    var go=function(){driveResumeDownload();};
+    if(driveTokenOk())go();else driveSignIn(true).then(go,function(e){toast("Bağlanamadı: "+(e&&e.message||e));});
+  };
+  var dcn=ov.querySelector("#drv-dlcancel");if(dcn)dcn.onclick=function(){try{localStorage.removeItem(DRV_DL_KEY);}catch(e){}toast("Kalan fotoğraflar indirilmeyecek; gerekenler açtıkça iner");render();};
   var drs=ov.querySelector("#drv-restore");if(drs)drs.onclick=function(){
-    var go=function(){var pr=document.getElementById("drv-prog");if(pr)pr.textContent="Drive’daki fotoğraflar listeleniyor…";
-      driveRestoreMissing(function(d,t){var p2=document.getElementById("drv-prog");if(p2)p2.textContent=d+" / "+t+" fotoğraf indirildi";})
-        .then(function(r){toast(r.downloaded+" fotoğraf Drive’dan geri geldi");render();})
+    var go=function(){setTimeout(function(){if(App.backupSheet)render();var p0=document.getElementById("drv-prog");if(p0&&!/indirildi/.test(p0.textContent))p0.textContent="Drive’daki fotoğraflar listeleniyor…";},400);var pr=document.getElementById("drv-prog");if(pr)pr.textContent="Drive’daki fotoğraflar listeleniyor…";
+      driveRestoreMissing(function(d,t){DRV.dlProg=d+" / "+t;var p2=document.getElementById("drv-prog");if(p2)p2.textContent=d+" / "+t+" fotoğraf indirildi";})
+        .then(function(r){toast(DRV.dlStop?"İndirme durduruldu, "+r.downloaded+" fotoğraf indi":(r.downloaded+" fotoğraf Drive’dan geri geldi"+(r.failed?(", "+r.failed+" tanesi inmedi; Devam et ile tekrar denenir"):"")));render();})
         .catch(function(e){var p3=document.getElementById("drv-prog");if(p3)p3.textContent="Hata: "+(e&&e.message||e);});};
     if(driveTokenOk())go();else driveSignIn(true).then(go,function(e){toast("Bağlanamadı: "+(e&&e.message||e));});
   };
