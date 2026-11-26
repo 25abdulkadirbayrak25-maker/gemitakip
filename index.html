@@ -400,7 +400,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-25f";
+var APP_BUILD="2026-11-26a";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7544,7 +7544,7 @@ function driveFolders(){
 function driveMultipart(meta,blob,method,fileId){
   var bnd="gtb"+Math.random().toString(36).slice(2);
   var body=new Blob(["--"+bnd+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(meta)+"\r\n--"+bnd+"\r\nContent-Type: "+(blob.type||"application/octet-stream")+"\r\n\r\n",blob,"\r\n--"+bnd+"--"]);
-  var url=fileId?(DRIVE_UPLOAD+"/files/"+fileId+"?uploadType=multipart&fields=id"):(DRIVE_UPLOAD+"/files?uploadType=multipart&fields=id");
+  var url=fileId?(DRIVE_UPLOAD+"/files/"+fileId+"?uploadType=multipart&fields=id,md5Checksum"):(DRIVE_UPLOAD+"/files?uploadType=multipart&fields=id,md5Checksum");
   return driveFetch(url,{method:method||"POST",headers:{"Content-Type":"multipart/related; boundary="+bnd},body:body});
 }
 function dataUrlToBlob(u){var dp=dataUrlParts(u);if(!dp)return null;return new Blob([b64ToBytes(dp.b64)],{type:dp.mime});}
@@ -7653,6 +7653,91 @@ function driveFetchData(){
     });
   });
 }
+
+/* ===================== İki yönlü eşitleme =====================
+   Her cihaz kendi kopyasını Drive'a yazar. Yazmadan önce Drive'daki dosya başka bir cihaz tarafından değiştirildiyse
+   önce o indirilir ve birleştirilir: her gün için en son kaydedilen hâli alınır, gün listeleri ve kalıp listeleri birleşir,
+   olmayan gemiler eklenir. Böylece telefon ve bilgisayar birbirinin işini silmeden aynı veriyi görür. */
+function syncShipKeyOk(k){return k.indexOf("tersane_")===0&&k.indexOf("tersane_slot")!==0&&k.indexOf("tersane_foto_")!==0;}
+function syncNorm(n){return String(n||"").toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşıöç]+/g,"");}
+function syncParse(v){try{return typeof v==="string"?JSON.parse(v):v;}catch(e){return null;}}
+function syncShipName(map,get){var p=syncParse(get?get(PROJECT_KEY):map[PROJECT_KEY]);return p&&p.shipName||"";}
+// Bir geminin anahtarlarını diğerine katar. dst: {get(k), set(k,v), keys()}. Döner: değişen anahtar sayısı
+function syncMergeShip(dst,src){
+  var n=0;
+  Object.keys(src).forEach(function(k){
+    if(!syncShipKeyOk(k))return;
+    var sv=src[k],dv=dst.get(k);
+    if(sv==null||sv===dv)return;
+    if(k.indexOf("tersane_rapor_")===0){
+      var so=syncParse(sv),dob=syncParse(dv);
+      if(!dob||(so&&(so.updated||0)>(dob.updated||0))){dst.set(k,sv);n++;}
+      return;
+    }
+    if(k===INDEX_KEY||k===BOLUMLER_KEY||k===BASLIKLAR_KEY||k===ASAMALAR_KEY||k===JOBS_KEY){
+      var a=syncParse(dv)||[],b=syncParse(sv)||[];if(!Array.isArray(a)||!Array.isArray(b))return;
+      var seen={},out=[];a.concat(b).forEach(function(x){var kk=typeof x==="string"?x.toLocaleLowerCase("tr").trim():JSON.stringify(x);if(!seen[kk]){seen[kk]=1;out.push(x);}});
+      if(out.length!==a.length){if(k===INDEX_KEY)out.sort();dst.set(k,JSON.stringify(out));n++;}
+      return;
+    }
+    if(dv==null&&(k===PROJECT_KEY||k.indexOf("tersane_dayplan")===0||k.indexOf("tersane_not")===0)){dst.set(k,sv);n++;}
+  });
+  return n;
+}
+function syncMergeSnapshot(remote){
+  var rk=(remote&&remote.keys)||{},changed=0,activeChanged=false;
+  // Drive'daki gemiler: açık gemi + arşivdekiler
+  var rShips=[],rAct=rk[ACTIVE_SLOT_KEY]||"";
+  var rActMap={};Object.keys(rk).forEach(function(k){if(syncShipKeyOk(k))rActMap[k]=rk[k];});
+  if(rActMap[PROJECT_KEY])rShips.push({id:rAct,map:rActMap});
+  Object.keys(rk).forEach(function(k){if(k.indexOf("tersane_slotdata_")!==0)return;var id=k.substring(17);if(id===rAct&&rActMap[PROJECT_KEY])return;
+    var m=syncParse(rk[k]);if(m&&typeof m==="object")rShips.push({id:id,map:m});});
+  // bu cihazdaki gemiler
+  var lAct=getActiveSlotId(),hasLocal=!!getJSON(PROJECT_KEY,null);
+  var activeDst={get:function(k){return sGet(k);},set:function(k,v){try{localStorage.setItem(k,v);}catch(e){}activeChanged=true;}};
+  var locals=[];
+  if(hasLocal)locals.push({id:lAct,name:syncNorm(syncShipName(null,function(k){return sGet(k);})),dst:activeDst,active:true});
+  loadSlots().forEach(function(sl){if(sl.id===lAct&&hasLocal)return;var data=slotGet(sl.id);if(!data)return;
+    locals.push({id:sl.id,name:syncNorm(syncShipName(data)||sl.shipName||sl.name),data:data,dst:{get:function(k){return data[k];},set:function(k,v){data[k]=v;this._dirty=true;}}});});
+  rShips.forEach(function(r){
+    var nm=syncNorm(syncShipName(r.map));
+    var L=locals.filter(function(x){return x.id&&x.id===r.id;})[0]||locals.filter(function(x){return nm&&x.name===nm;})[0];
+    if(L){changed+=syncMergeShip(L.dst,r.map);return;}
+    if(!hasLocal&&!locals.some(function(x){return x.active;})){
+      // boş cihaz: Drive'daki açık gemiyi doğrudan aç
+      Object.keys(r.map).forEach(function(k){try{localStorage.setItem(k,r.map[k]);}catch(e){}});
+      if(r.id)setActiveSlotId(r.id);activeChanged=true;changed++;hasLocal=true;
+      locals.push({id:r.id,name:nm,dst:activeDst,active:true});return;
+    }
+    var id=r.id||newSlotId(),data={};Object.keys(r.map).forEach(function(k){if(syncShipKeyOk(k))data[k]=r.map[k];});
+    if(!data[PROJECT_KEY])return;
+    slotPut(id,data);var sl=loadSlots();if(!sl.some(function(x){return x.id===id;})){var ix=syncParse(data[INDEX_KEY])||[];sl.push({id:id,name:syncShipName(data)||"Gemi",shipName:syncShipName(data),savedAt:Date.now(),dayCount:ix.length});saveSlots(sl);}
+    locals.push({id:id,name:nm,data:data,dst:{get:function(k){return data[k];},set:function(k,v){data[k]=v;}}});changed++;
+  });
+  locals.forEach(function(L){if(L.dst._dirty&&L.data){slotPut(L.id,L.data);}});
+  // gemiler arası ortak iş kalıpları
+  var rt=syncParse(rk[ISTPL_KEY]);if(Array.isArray(rt)){var lt=loadIsTemplates(),ids={};lt.forEach(function(t){ids[t.id]=1;});var add=rt.filter(function(t){return t&&t.id&&!ids[t.id];});if(add.length){saveIsTemplates(lt.concat(add));changed++;}}
+  if(activeChanged){invalidateChainCache();loadAll();if(App.view==="day"&&App.selectedDate&&!App.editor)loadDay(App.selectedDate);}
+  if(changed)try{repairSlots();}catch(e){}
+  return changed;
+}
+function driveDataMeta(c){
+  if(!c.dataId)return Promise.resolve(null);
+  return driveFetch(DRIVE_API+"/files/"+c.dataId+"?fields=id,md5Checksum,modifiedTime,trashed").catch(function(){return null;});
+}
+// Drive'daki veri başka cihazda değiştiyse indirip birleştir. Döner: birleşen değişiklik sayısı
+function drivePullMerge(c){
+  return (c.dataId?Promise.resolve():driveFetchData().then(function(){c=driveCfg();},function(){})).then(function(){return driveDataMeta(c);}).then(function(m){
+    if(!m||m.trashed||!m.md5Checksum||m.md5Checksum===c.remoteMd5)return 0;
+    return driveFetch(DRIVE_API+"/files/"+c.dataId+"?alt=media",{},true).then(function(r){return r.text();}).then(function(t){
+      var snap=null;try{snap=JSON.parse(t);}catch(e){}
+      var n=snap?syncMergeSnapshot(snap):0;
+      var c2=driveCfg();c2.remoteMd5=m.md5Checksum;driveSaveCfg(c2);
+      if(n){DRV.dirty=true;DRV.lastMerge=Date.now();if(!App.editor&&!App.draft)render();toast("Diğer cihazdaki değişiklikler alındı");}
+      return n;
+    });
+  });
+}
 function driveSync(manual){
   if(!driveEnabled())return Promise.resolve(null);
   if(!driveTokenOk()){DRV.needTap=true;driveStatusRender();return Promise.resolve(null);}
@@ -7661,7 +7746,9 @@ function driveSync(manual){
   DRV.busy=true;DRV.lastErr="";driveStatusRender();
   var c;
   return driveFolders().then(function(c0){c=c0;
-    if(DRV.dirty||manual||!c.dataSyncedAt){DRV.dirty=false;return driveUploadData(c).then(function(r){if(r){c.dataSyncedAt=Date.now();driveSaveCfg(c);setLastBackup();}});}
+    return drivePullMerge(c).catch(function(e){console.warn("eşitleme birleştirme",e);});
+  }).then(function(){c=driveCfg();
+    if(DRV.dirty||manual||!c.dataSyncedAt){DRV.dirty=false;return driveUploadData(c).then(function(r){if(r){var c3=driveCfg();c3.dataSyncedAt=Date.now();if(r.md5Checksum)c3.remoteMd5=r.md5Checksum;driveSaveCfg(c3);c=c3;setLastBackup();}});}
   }).then(function(){return driveProcessTrash().catch(function(){});}).then(function(){return driveUploadPhotos(c,manual?60:25);}).then(function(r){
     return driveBuildPacks(manual?10:3).then(function(){return driveSyncFps();}).then(function(){return r;});
   }).then(function(r){
