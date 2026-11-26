@@ -400,7 +400,7 @@ textarea.in{resize:vertical;min-height:78px;}
 <div id="root"></div>
 
 <script>
-var APP_BUILD="2026-11-26a";
+var APP_BUILD="2026-11-26b";
 var DIAG_ERR=[];
 try{
   window.addEventListener("error",function(e){if(DIAG_ERR.length<30)DIAG_ERR.push({t:Date.now(),m:String(e.message||e),src:(e.filename||"").slice(-40)+":"+(e.lineno||"")});});
@@ -7513,10 +7513,50 @@ function driveSignIn(silent){
     DRV.client.requestAccessToken({prompt:silent?"":"consent"});
   });});
 }
+
+/* ===================== İnternet kullanımı sayacı =====================
+   Drive ve Gemini için indirilen ve gönderilen veri miktarını sayar (yaklaşık; bağlantı başlıkları dahil değil).
+   Bu cihaza özel tutulur, yedeğe girmez. Oturum, gün, ay ve sıfırlandığından beri toplam gösterilir. */
+var NET_KEY="gt_internet_sayac";
+var NET_SESSION={down:0,up:0};
+function netLoad(){try{var o=JSON.parse(localStorage.getItem(NET_KEY)||"null");if(o&&typeof o==="object")return o;}catch(e){}return {down:0,up:0,since:Date.now(),days:{},months:{}};}
+var NET=netLoad(),NET_SAVE_T=null;
+function netCount(dir,bytes){
+  bytes=+bytes||0;if(bytes<=0)return;
+  var d=new Date(),day=d.toISOString().slice(0,10),mon=day.slice(0,7);
+  NET[dir]+=bytes;NET_SESSION[dir]+=bytes;
+  NET.days=NET.days||{};NET.months=NET.months||{};
+  (NET.days[day]=NET.days[day]||{down:0,up:0})[dir]+=bytes;
+  (NET.months[mon]=NET.months[mon]||{down:0,up:0})[dir]+=bytes;
+  if(!NET_SAVE_T)NET_SAVE_T=setTimeout(function(){NET_SAVE_T=null;
+    var ks=Object.keys(NET.days).sort();while(ks.length>40)delete NET.days[ks.shift()];
+    try{localStorage.setItem(NET_KEY,JSON.stringify(NET));}catch(e){}
+    var el=document.getElementById("net-usage");if(el)el.innerHTML=netUsageHTML(true);
+  },1500);
+}
+function netBodySize(b){if(!b)return 0;if(typeof b==="string")return new Blob([b]).size;if(b.size!=null)return b.size;if(b.byteLength!=null)return b.byteLength;return 0;}
+function netCountResponse(r){
+  try{var cl=+(r.headers.get("content-length")||0);
+    if(cl>0){netCount("down",cl);return;}
+    r.clone().blob().then(function(b){netCount("down",b.size);},function(){});
+  }catch(e){}
+}
+function fmtNet(b){b=+b||0;if(b<1024*1024)return Math.max(0,Math.round(b/1024))+" KB";if(b<1024*1024*1024)return (b/1048576).toFixed(b<10485760?1:0).replace(".",",")+" MB";return (b/1073741824).toFixed(2).replace(".",",")+" GB";}
+function netUsageHTML(inner){
+  var d=new Date(),day=d.toISOString().slice(0,10),mon=day.slice(0,7);
+  var td=(NET.days||{})[day]||{down:0,up:0},tm=(NET.months||{})[mon]||{down:0,up:0};
+  function row(lbl,o){return '<div style="display:flex;justify-content:space-between;gap:8px"><span>'+lbl+'</span><span style="font-family:\'IBM Plex Mono\',monospace">↓ '+fmtNet(o.down)+' · ↑ '+fmtNet(o.up)+' · <b>'+fmtNet(o.down+o.up)+'</b></span></div>';}
+  var h=row("Bu oturum",NET_SESSION)+row("Bugün",td)+row("Bu ay",tm)+row("Toplam",NET);
+  h+='<div style="font-size:10.5px;color:var(--t4);margin-top:3px">Toplam, '+new Date(NET.since||Date.now()).toLocaleDateString("tr-TR",{day:"numeric",month:"long"})+' tarihinden beri. ↓ indirilen, ↑ gönderilen. Yaklaşık değerdir.</div>';
+  return inner?h:'<div id="net-usage" style="font-size:12px;color:var(--t2);background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0;line-height:1.6">'+h+'</div>';
+}
+function netReset(){NET={down:0,up:0,since:Date.now(),days:{},months:{}};NET_SESSION={down:0,up:0};try{localStorage.setItem(NET_KEY,JSON.stringify(NET));}catch(e){}}
 function driveFetch(url,opt,raw,tries){
   opt=opt||{};opt.headers=opt.headers||{};opt.headers.Authorization="Bearer "+DRV.token;
   var isGet=!opt.method||opt.method==="GET";tries=tries||0;
+  netCount("up",netBodySize(opt.body)+(isGet?0:0));
   return fetch(url,opt).then(function(r){
+    netCountResponse(r);
     if(r.status===401){DRV.token=null;DRV.needTap=true;throw new Error("Drive oturumu süresi doldu");}
     if((r.status===429||r.status>=500)&&tries<3)return new Promise(function(z){setTimeout(z,2000*(tries+1));}).then(function(){return driveFetch(url,opt,raw,tries+1);});
     if(!r.ok)return r.text().then(function(t){throw new Error("Drive "+r.status+": "+t.slice(0,120));});
@@ -7769,6 +7809,7 @@ function driveStatusText(){
   if(!driveTokenOk())return '<b style="color:#b45309">Oturum yenilenmeli</b> · bir yere dokunduğunuzda yenilenir'+(DRV.pendingPhotos?" · bekleyen "+DRV.pendingPhotos+" fotoğraf":"");
   var s=DRV.busy?"Eşitleniyor…":(DRV.lastSync?("Son eşitleme "+new Date(DRV.lastSync).toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})):"Bağlı");
   if(DRV.pendingPhotos)s+=" · bekleyen "+DRV.pendingPhotos+" fotoğraf";
+  if(NET_SESSION.down+NET_SESSION.up>0)s+=" · bu oturumda "+fmtNet(NET_SESSION.down+NET_SESSION.up)+" internet";
   if(DRV.lastErr)s+=' · <span style="color:#b91c1c">'+esc(DRV.lastErr)+'</span>';
   return s;
 }
@@ -8386,6 +8427,7 @@ function mountBackupSheet(){
   h+='<div style="font-size:12px;font-weight:800;color:#1d4ed8;margin-bottom:4px">DRIVE EŞİTLEME</div>';
   h+='<div style="font-size:12.5px;color:var(--t2);line-height:1.5;margin-bottom:8px">Her fotoğraf ve iş kaydı kendiliğinden Drive’ınızdaki GemiTakip klasörüne de yazılır. Telefon depoyu silse bile buradan geri gelir.</div>';
   h+='<div style="font-size:11px;color:var(--t3);margin-bottom:4px">'+esc(storageInfoLine())+'</div>';
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px"><span style="font-size:11.5px;font-weight:800;color:#1d4ed8">İNTERNET KULLANIMI</span><button id="net-reset" style="font-size:11px;color:var(--t3);text-decoration:underline;background:none">Sıfırla</button></div>'+netUsageHTML();
   h+='<div id="drv-status" style="font-size:12.5px;color:var(--t2);margin-bottom:8px">'+driveStatusText()+' <span style="font-size:10.5px;color:var(--t4)">· sürüm '+APP_BUILD+'</span></div>';
   if(!_dc.clientId){
     h+='<input class="in" id="drv-cid" placeholder="Google Client ID (…apps.googleusercontent.com)" style="margin-bottom:8px"/>';
@@ -8467,6 +8509,7 @@ function mountBackupSheet(){
       .catch(function(e){toast("Bağlanamadı: "+(e&&e.message||e));render();});
   };
   var dsy=ov.querySelector("#drv-sync");if(dsy)dsy.onclick=function(){if(!driveTokenOk()){driveSignIn(true).then(function(){driveSync(true);});return;}driveSync(true);};
+  var nrs=ov.querySelector("#net-reset");if(nrs)nrs.onclick=function(){if(!confirm("İnternet kullanımı sayacı sıfırlansın mı?"))return;netReset();var el=document.getElementById("net-usage");if(el)el.innerHTML=netUsageHTML(true);toast("Sayaç sıfırlandı");};
   var dst=ov.querySelector("#drv-dlstop");if(dst)dst.onclick=function(){DRV.dlStop=true;dst.disabled=true;dst.textContent="Durduruluyor…";toast("İndirme durduruluyor; inenler telefonda kalır, Devam et ile sürdürebilirsin");};
   var dgo=ov.querySelector("#drv-dlgo");if(dgo)dgo.onclick=function(){
     var go=function(){driveResumeDownload();};
@@ -9089,10 +9132,11 @@ function geminiCall(prompt){
   var chain=[];
   var lastErr=null;
   function one(m){
+    var _gb=JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:1024}});netCount("up",netBodySize(_gb));
     return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(m)+":generateContent",{
       method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":c.key},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:1024}})
-    }).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};},function(){return {ok:r.ok,status:r.status,j:{}};});});
+      body:_gb
+    }).then(function(r){netCountResponse(r);return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};},function(){return {ok:r.ok,status:r.status,j:{}};});});
   }
   function attempt(i,round){
     if(i>=chain.length){
@@ -9128,7 +9172,7 @@ function geminiCall(prompt){
 var GEMINI_MODELS_CACHE=null;
 function geminiModels(key){
   if(GEMINI_MODELS_CACHE&&GEMINI_MODELS_CACHE.key===key&&Date.now()-GEMINI_MODELS_CACHE.t<6*3600e3)return Promise.resolve(GEMINI_MODELS_CACHE.list);
-  return fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}}).then(function(r){return r.ok?r.json():{models:[]};}).then(function(j){
+  return fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",{headers:{"x-goog-api-key":key}}).then(function(r){netCountResponse(r);return r.ok?r.json():{models:[]};}).then(function(j){
     var L=(j.models||[]).filter(function(m){var n=String(m.name||"");return /gemini/.test(n)&&/flash/.test(n)&&(m.supportedGenerationMethods||[]).indexOf("generateContent")>=0&&!/image|tts|audio|live|embed|thinking-exp|robotics|computer/.test(n);})
       .map(function(m){return String(m.name).replace(/^models\//,"");});
     function ver(n){var m=/gemini-(\d+(?:\.\d+)?)/.exec(n);return m?parseFloat(m[1]):0;}
